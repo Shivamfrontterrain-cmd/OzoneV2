@@ -1,0 +1,618 @@
+{
+  "kanto": [
+    {
+      "name": "Brock",
+      "city": "Pewter City",
+      "gym_name": "Pewter City Gym",
+      "poke_type": "Rock",
+      "fee": 200,
+      "quote": "So, you want to challenge me? My Pok\u00e9mon are as hard as rock and twice as tough. Don't expect me to go easy on you!",
+      "badge": "Boulder Badge",
+      "signature_pokemon": "Onix",
+      "signature_pokemon_id": 95,
+      "team_pokemon_ids": [
+        95,
+        74,
+        453,
+        259,
+        185,
+        208
+      ]
+    },
+    {
+      "name": "Misty",
+      "city": "Cerulean City",
+      "gym_name": "Cerulean City Gym",
+      "poke_type": "Water",
+      "fee": 400,
+      "quote": "Hi, you're a new face! Trainers who want to turn pro have to have a policy about Pok\u00e9mon! My policy is an all-out offensive with Water-type Pok\u00e9mon!",
+      "badge": "Cascade Badge",
+      "signature_pokemon": "Starmie",
+      "signature_pokemon_id": 121,
+      "team_pokemon_ids": [
+        121,
+        120,
+        54,
+        222,
+        186,
+        130
+      ]
+    },
+    {
+      "name": "Lt. Surge",
+      "city": "Vermilion City",
+      "gym_name": "Vermilion City Gym",
+      "poke_type": "Electric",
+      "fee": 600,
+      "quote": "Hey, kid! What do you think you're doing here? You won't live long in combat! I tell you kid, electric Pok\u00e9mon saved me during the war!",
+      "badge": "Thunder Badge",
+      "signature_pokemon": "Raichu",
+      "signature_pokemon_id": 26,
+      "team_pokemon_ids": [
+        26,
+        125,
+        82,
+        101,
+        135,
+        462
+      ]
+    },
+    {
+      "name": "Erika",
+      "city": "Celadon City",
+      "gym_name": "Celadon City Gym",
+      "poke_type": "Grass",
+      "fee": 800,
+      "quote": "Hello... Lovely weather, isn't it? It's so pleasant... My name is Erika. I am the Leader of Celadon Gym.",
+      "badge": "Rainbow Badge",
+      "signature_pokemon": "Gloom",
+      "signature_pokemon_id": 44,
+      "team_pokemon_ids": [
+        44,
+        114,
+        70,
+        45,
+        182,
+        71
+      ]
+    },
+    {
+      "name": "Koga",
+      "city": "Fuchsia City",
+      "gym_name": "Fuchsia City Gym",
+      "poke_type": "Poison",
+      "fee": 1000,
+      "quote": "Fwahahaha! A mere child like you dares to challenge me? Very well, I shall show you the terror of a ninja master!",
+      "badge": "Soul Badge",
+      "signature_pokemon": "Venomoth",
+      "signature_pokemon_id": 49,
+      "team_pokemon_ids": [
+        49,
+        48,
+        42,
+        110,
+        89,
+        169
+      ]
+    },
+    {
+      "name": "Sabrina",
+      "city": "Saffron City",
+      "gym_name": "Saffron City Gym",
+      "poke_type": "Psychic",
+      "fee": 1200,
+      "quote": "I had a vision of your arrival! I have had psychic powers since I was a child. Prepare yourself!",
+      "badge": "Marsh Badge",
+      "signature_pokemon": "Kadabra",
+      "signature_pokemon_id": 64,
+      "team_pokemon_ids": [
+        64,
+        63,
+        65,
+        122,
+        49,
+        196
+      ]
+    },
+    {
+      "name": "Blaine",
+      "city": "Cinnabar Island",
+      "gym_name": "Cinnabar Island Gym",
+      "poke_type": "Fire",
+      "fee": 1400,
+      "quote": "Hah! I am Blaine! I am the Leader of Cinnabar Gym! My fiery Pok\u00e9mon will incinerate all challengers!",
+      "badge": "Volcano Badge",
+      "signature_pokemon": "Magmar",
+      "signature_pokemon_id": 126,
+      "team_pokemon_ids": [
+        126,
+        38,
+        112,
+        78,
+        59,
+        467
+      ]
+    },
+    {
+      "name": "Giovanni",
+      "city": "Viridian City",
+      "gym_name": "Viridian City Gym",
+      "poke_type": "Ground",
+      "fee": 1600,
+      "quote": "Fwahahaha! Welcome to my hideout! It shall be the stage of your destruction! Feel the fury of the earth!",
+      "badge": "Earth Badge",
+      "signature_pokemon": "Rhydon",
+      "signature_pokemon_id": 112,
+      "team_pokemon_ids": [
+        112,
+        53,
+        68,
+        99,
+        34,
+        31
+      ]
+    }
+  ],
+  "johto": [
+    {
+      "name": "Falkner",
+      "city": "Violet City",
+      "gym_name": "Violet City Gym",
+      "poke_type": "Flying",
+      "fee": 200,
+      "quote": "I'm Falkner, the Violet Gym leader! People say you can clip flying-type Pok\u00e9mon's wings with electricity... I won't allow such insults!",
+      "badge": "Zephyr Badge",
+      "signature_pokemon": "Pidgeot",
+      "signature_pokemon_id": 18,
+      "team_pokemon_ids": [
+        18,
+        163,
+        85,
+        164,
+        277,
+        430
+      ]
+    },
+    {
+      "name": "Bugsy",
+      "city": "Azalea Town",
+      "gym_name": "Azalea Town Gym",
+      "poke_type": "Bug",
+      "fee": 400,
+      "quote": "I'm Bugsy! I never lose when it comes to bug Pok\u00e9mon. I want to be the world's greatest bug Pok\u00e9mon researcher!",
+      "badge": "Hive Badge",
+      "signature_pokemon": "Scyther",
+      "signature_pokemon_id": 123,
+      "team_pokemon_ids": [
+        123,
+        167,
+        11,
+        213,
+        214,
+        212
+      ]
+    },
+    {
+      "name": "Whitney",
+      "city": "Goldenrod City",
+      "gym_name": "Goldenrod City Gym",
+      "poke_type": "Normal",
+      "fee": 600,
+      "quote": "Hi! I'm Whitney! Everyone was into Pok\u00e9mon, so I got into it too! Pok\u00e9mon are super cute! You think you can beat my Miltank?",
+      "badge": "Plain Badge",
+      "signature_pokemon": "Miltank",
+      "signature_pokemon_id": 241,
+      "team_pokemon_ids": [
+        241,
+        35,
+        40,
+        217,
+        242,
+        463
+      ]
+    },
+    {
+      "name": "Morty",
+      "city": "Ecruteak City",
+      "gym_name": "Ecruteak City Gym",
+      "poke_type": "Ghost",
+      "fee": 800,
+      "quote": "Good of you to come. Here in Ecruteak, trainers have revered Pok\u00e9mon since ancient times. I have trained in secret with ghost Pok\u00e9mon!",
+      "badge": "Fog Badge",
+      "signature_pokemon": "Gengar",
+      "signature_pokemon_id": 94,
+      "team_pokemon_ids": [
+        94,
+        92,
+        93,
+        200,
+        302,
+        477
+      ]
+    },
+    {
+      "name": "Chuck",
+      "city": "Cianwood City",
+      "gym_name": "Cianwood City Gym",
+      "poke_type": "Fighting",
+      "fee": 1000,
+      "quote": "WAHAHAH! So you've come this far! Let me tell you, I'm tough! My Pok\u00e9mon will crush stones and shatter bones!",
+      "badge": "Storm Badge",
+      "signature_pokemon": "Poliwrath",
+      "signature_pokemon_id": 62,
+      "team_pokemon_ids": [
+        62,
+        57,
+        68,
+        107,
+        106,
+        308
+      ]
+    },
+    {
+      "name": "Jasmine",
+      "city": "Olivine City",
+      "gym_name": "Olivine City Gym",
+      "poke_type": "Steel",
+      "fee": 1200,
+      "quote": "...Thank you for your help at the Lighthouse... But this is different. I am Jasmine, a Gym Leader. I use the Steel type...",
+      "badge": "Mineral Badge",
+      "signature_pokemon": "Steelix",
+      "signature_pokemon_id": 208,
+      "team_pokemon_ids": [
+        208,
+        81,
+        82,
+        227,
+        376,
+        395
+      ]
+    },
+    {
+      "name": "Pryce",
+      "city": "Mahogany Town",
+      "gym_name": "Mahogany Town Gym",
+      "poke_type": "Ice",
+      "fee": 1400,
+      "quote": "Pok\u00e9mon have many experiences in their lives, just like we do. I, too, have seen and suffered much. I am Pryce, the winter trainer!",
+      "badge": "Glacier Badge",
+      "signature_pokemon": "Piloswine",
+      "signature_pokemon_id": 221,
+      "team_pokemon_ids": [
+        221,
+        87,
+        473,
+        91,
+        362,
+        461
+      ]
+    },
+    {
+      "name": "Clair",
+      "city": "Blackthorn City",
+      "gym_name": "Blackthorn City Gym",
+      "poke_type": "Dragon",
+      "fee": 1600,
+      "quote": "I am Clair. The world's best dragon master! I can hold my own against even the Pok\u00e9mon League's Elite Four!",
+      "badge": "Rising Badge",
+      "signature_pokemon": "Kingdra",
+      "signature_pokemon_id": 230,
+      "team_pokemon_ids": [
+        230,
+        130,
+        148,
+        149,
+        621,
+        373
+      ]
+    }
+  ],
+  "hoenn": [
+    {
+      "name": "Roxanne",
+      "city": "Rustboro City",
+      "gym_name": "Rustboro City Gym",
+      "poke_type": "Rock",
+      "fee": 200,
+      "quote": "Hello, I am Roxanne, the Rustboro Gym Leader. I became a Gym Leader so that I might apply what I learned at the Pok\u00e9mon Trainer's School in battle!",
+      "badge": "Stone Badge",
+      "signature_pokemon": "Nosepass",
+      "signature_pokemon_id": 299,
+      "team_pokemon_ids": [
+        299,
+        74,
+        76,
+        476,
+        346,
+        348
+      ]
+    },
+    {
+      "name": "Brawly",
+      "city": "Dewford Town",
+      "gym_name": "Dewford Town Gym",
+      "poke_type": "Fighting",
+      "fee": 400,
+      "quote": "I'm Brawly! Dewford's Gym Leader! I've been churned in the rough waves of these parts, and I've grown tough in the pitch-black of Granite Cave!",
+      "badge": "Knuckle Badge",
+      "signature_pokemon": "Hariyama",
+      "signature_pokemon_id": 297,
+      "team_pokemon_ids": [
+        297,
+        66,
+        307,
+        68,
+        237,
+        286
+      ]
+    },
+    {
+      "name": "Wattson",
+      "city": "Mauville City",
+      "gym_name": "Mauville City Gym",
+      "poke_type": "Electric",
+      "fee": 600,
+      "quote": "Wahahaha! Finally, a challenger! Now, prepare to be electrified! My electric Pok\u00e9mon will shock your senses!",
+      "badge": "Dynamo Badge",
+      "signature_pokemon": "Manectric",
+      "signature_pokemon_id": 310,
+      "team_pokemon_ids": [
+        310,
+        100,
+        82,
+        125,
+        26,
+        181
+      ]
+    },
+    {
+      "name": "Flannery",
+      "city": "Lavaridge Town",
+      "gym_name": "Lavaridge Town Gym",
+      "poke_type": "Fire",
+      "fee": 800,
+      "quote": "Welcome... No, wait! I am Flannery, the Gym Leader of Lavaridge! Burn, burn, burn with fiery passion!",
+      "badge": "Heat Badge",
+      "signature_pokemon": "Torkoal",
+      "signature_pokemon_id": 324,
+      "team_pokemon_ids": [
+        324,
+        218,
+        219,
+        323,
+        229,
+        257
+      ]
+    },
+    {
+      "name": "Norman",
+      "city": "Petalburg City",
+      "gym_name": "Petalburg City Gym",
+      "poke_type": "Normal",
+      "fee": 1000,
+      "quote": "Hm! I see you've grown stronger. As a Gym Leader, I will face you with all my power!",
+      "badge": "Balance Badge",
+      "signature_pokemon": "Slaking",
+      "signature_pokemon_id": 289,
+      "team_pokemon_ids": [
+        289,
+        327,
+        288,
+        295,
+        115,
+        143
+      ]
+    },
+    {
+      "name": "Winona",
+      "city": "Fortree City",
+      "gym_name": "Fortree City Gym",
+      "poke_type": "Flying",
+      "fee": 1200,
+      "quote": "I am Winona. I have become one with bird Pok\u00e9mon and have soared the skies... Witness the elegant choreography of my Pok\u00e9mon!",
+      "badge": "Feather Badge",
+      "signature_pokemon": "Swellow",
+      "signature_pokemon_id": 277,
+      "team_pokemon_ids": [
+        277,
+        334,
+        279,
+        227,
+        357,
+        398
+      ]
+    },
+    {
+      "name": "Tate & Liza",
+      "city": "Mossdeep City",
+      "gym_name": "Mossdeep City Gym",
+      "poke_type": "Psychic",
+      "fee": 1400,
+      "quote": "Fufufu... You're wondering who the Leader is? We both are! Our telepathic bond is stronger than any obstacle!",
+      "badge": "Mind Badge",
+      "signature_pokemon": "Solrock",
+      "signature_pokemon_id": 338,
+      "team_pokemon_ids": [
+        338,
+        337,
+        344,
+        178,
+        475,
+        282
+      ]
+    },
+    {
+      "name": "Wallace",
+      "city": "Sootopolis City",
+      "gym_name": "Sootopolis City Gym",
+      "poke_type": "Water",
+      "fee": 1600,
+      "quote": "I am Wallace, the Gym Leader of Sootopolis. Allow me to demonstrate the grace and elegance of Water-type Pok\u00e9mon!",
+      "badge": "Rain Badge",
+      "signature_pokemon": "Milotic",
+      "signature_pokemon_id": 350,
+      "team_pokemon_ids": [
+        350,
+        370,
+        364,
+        340,
+        272,
+        365
+      ]
+    }
+  ],
+  "sinnoh": [
+    {
+      "name": "Roark",
+      "city": "Oreburgh City",
+      "gym_name": "Oreburgh City Gym",
+      "poke_type": "Rock",
+      "fee": 200,
+      "quote": "Welcome to Oreburgh Gym! I am Roark, the Gym Leader. In accordance with Pok\u00e9mon League rules, let's begin!",
+      "badge": "Coal Badge",
+      "signature_pokemon": "Rampardos",
+      "signature_pokemon_id": 409,
+      "team_pokemon_ids": [
+        409,
+        74,
+        95,
+        185,
+        142,
+        248
+      ]
+    },
+    {
+      "name": "Gardenia",
+      "city": "Eterna City",
+      "gym_name": "Eterna City Gym",
+      "poke_type": "Grass",
+      "fee": 400,
+      "quote": "I'm Gardenia! The Eterna Gym Leader! Grass-type Pok\u00e9mon are so amazing and tough, you won't believe it!",
+      "badge": "Forest Badge",
+      "signature_pokemon": "Roserade",
+      "signature_pokemon_id": 407,
+      "team_pokemon_ids": [
+        407,
+        420,
+        387,
+        182,
+        465,
+        389
+      ]
+    },
+    {
+      "name": "Maylene",
+      "city": "Veilstone City",
+      "gym_name": "Veilstone City Gym",
+      "poke_type": "Fighting",
+      "fee": 600,
+      "quote": "Hello. I'm Maylene, the Veilstone Gym Leader. I take fighting very seriously, and my Pok\u00e9mon fight with all their hearts!",
+      "badge": "Cobble Badge",
+      "signature_pokemon": "Lucario",
+      "signature_pokemon_id": 448,
+      "team_pokemon_ids": [
+        448,
+        307,
+        67,
+        106,
+        392,
+        475
+      ]
+    },
+    {
+      "name": "Crasher Wake",
+      "city": "Pastoria City",
+      "gym_name": "Pastoria City Gym",
+      "poke_type": "Water",
+      "fee": 800,
+      "quote": "BWHAHAHA! The ring is ready! I am Crasher Wake, the torrential master! Sink or swim, challenger!",
+      "badge": "Fen Badge",
+      "signature_pokemon": "Floatzel",
+      "signature_pokemon_id": 419,
+      "team_pokemon_ids": [
+        419,
+        130,
+        195,
+        272,
+        62,
+        395
+      ]
+    },
+    {
+      "name": "Fantina",
+      "city": "Hearthome City",
+      "gym_name": "Hearthome City Gym",
+      "poke_type": "Ghost",
+      "fee": 1000,
+      "quote": "Ohohoho! Welcome! I am Fantina, the Gym Leader of Hearthome! My ghost Pok\u00e9mon dance with passion!",
+      "badge": "Relic Badge",
+      "signature_pokemon": "Mismagius",
+      "signature_pokemon_id": 429,
+      "team_pokemon_ids": [
+        429,
+        426,
+        94,
+        477,
+        442,
+        478
+      ]
+    },
+    {
+      "name": "Byron",
+      "city": "Canalave City",
+      "gym_name": "Canalave City Gym",
+      "poke_type": "Steel",
+      "fee": 1200,
+      "quote": "I am Byron! The Gym Leader of Canalave City! You want to test your strength against my steel-clad defense?",
+      "badge": "Mine Badge",
+      "signature_pokemon": "Bastiodon",
+      "signature_pokemon_id": 411,
+      "team_pokemon_ids": [
+        411,
+        436,
+        208,
+        82,
+        462,
+        306
+      ]
+    },
+    {
+      "name": "Candice",
+      "city": "Snowpoint City",
+      "gym_name": "Snowpoint City Gym",
+      "poke_type": "Ice",
+      "fee": 1400,
+      "quote": "You want to challenge Candice? Sure thing! You must have incredible focus to make it through the blizzard!",
+      "badge": "Icicle Badge",
+      "signature_pokemon": "Abomasnow",
+      "signature_pokemon_id": 460,
+      "team_pokemon_ids": [
+        460,
+        459,
+        308,
+        478,
+        461,
+        473
+      ]
+    },
+    {
+      "name": "Volkner",
+      "city": "Sunyshore City",
+      "gym_name": "Sunyshore City Gym",
+      "poke_type": "Electric",
+      "fee": 1600,
+      "quote": "...So you finally made it here. I'm Volkner. Let's see if your battle can ignite the spark within me again!",
+      "badge": "Beacon Badge",
+      "signature_pokemon": "Electivire",
+      "signature_pokemon_id": 466,
+      "team_pokemon_ids": [
+        466,
+        26,
+        424,
+        224,
+        405,
+        135
+      ]
+    }
+  ]
+}

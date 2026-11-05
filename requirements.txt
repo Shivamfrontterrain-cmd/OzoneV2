@@ -1,0 +1,21 @@
+# ==========================================
+# Pokémon Bot Python Tooling & Utilities Requirements
+# (Optional helper tools for data verification, image resizing, and asset inspection)
+# ==========================================
+
+# Data processing & JSON schema validation
+pydantic>=2.0.0
+orjson>=3.9.0
+
+# Asset manipulation & image verification
+Pillow>=10.0.0
+
+# HTTP requests for PokeAPI asset verification or Webhook testing
+requests>=2.31.0
+httpx>=0.27.0
+
+# Environment management
+python-dotenv>=1.0.0
+
+# CLI progress bars for asset scripts
+tqdm>=4.66.0

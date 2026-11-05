@@ -1,0 +1,24 @@
+[Unit]
+Description=Ozone Pokémon Telegram Bot
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/ozone_bot
+ExecStart=/opt/ozone_bot/ozone_pokemon_bot
+Restart=always
+RestartSec=5s
+EnvironmentFile=/opt/ozone_bot/.env
+
+# Hardening & System Resources
+LimitNOFILE=65535
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ozone_pokemon_bot
+
+[Install]
+WantedBy=multi-user.target
+

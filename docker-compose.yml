@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  ozone_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ozone_pokemon_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=sqlite:///app/data/pokemon_bot.db?mode=rwc
+      - POKEDEX_PATH=/app/pokedex.json
+      - ASSETS_DIR=/app/assets
+      - ADMIN_HOST=0.0.0.0
+      - ADMIN_PORT=5000
+    volumes:
+      # Persistent SQLite database storage on host
+      - ./data:/app/data
+      # Optional: mount assets directory from host so artwork can be updated without rebuilding
+      - ./assets:/app/assets:ro
+    ports:
+      # Bind admin panel to localhost on the host (accessible via SSH tunnel or reverse proxy)
+      - "127.0.0.1:5000:5000"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+

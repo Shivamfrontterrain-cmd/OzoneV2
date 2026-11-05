@@ -1,0 +1,52 @@
+[package]
+name = "ozone_pokemon_bot"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ozone Team"]
+description = "A high-performance Pokémon Telegram game bot built with Rust"
+default-run = "ozone_pokemon_bot"
+
+[dependencies]
+# Telegram Bot Framework
+teloxide = { version = "0.13", features = ["macros"] }
+
+# Asynchronous Runtime
+tokio = { version = "1.40", features = ["full"] }
+
+# Database Engine (Asynchronous SQLite)
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "sqlite",
+    "chrono",
+    "uuid",
+    "migrate"
+] }
+
+# Serialization & Data Formats
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Environment Variables & Configuration
+dotenvy = "0.15"
+
+# Structured Logging & Diagnostics
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utilities & Math
+rand = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.10", features = ["v4", "serde"] }
+url = "2.5"
+
+# Error Handling
+thiserror = "1.0"
+anyhow = "1.0"
+axum = "0.8.9"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

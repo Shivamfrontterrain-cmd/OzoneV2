@@ -1,0 +1,37 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+
+# Environment secrets & credentials
+.env
+*.env.local
+
+# SQLite Database files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Python virtual environment & cache (for asset tools)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Generated trainer cards and assets
+assets/trainer_cards/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE and Editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
