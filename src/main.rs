@@ -1442,41 +1442,62 @@ fn format_disambiguation_list(
     rows: &[SqliteRow],
     prompt: &str,
     callback_prefix: &str,
+    pokedex: &PokedexData,
+    display_option: DisplayOption,
 ) -> (String, InlineKeyboardMarkup) {
     let mut lines = Vec::new();
     let mut buttons = Vec::new();
 
-    for (idx, row) in rows.iter().enumerate() {
+    let max_items = 20;
+    let slice = if rows.len() > max_items {
+        &rows[..max_items]
+    } else {
+        rows
+    };
+
+    for (idx, row) in slice.iter().enumerate() {
         let num = idx + 1;
         let id: i64 = row.get("id");
-        let nickname: String = row.get("nickname");
-        let nature: String = row.get("nature");
-        let is_shiny = row.try_get::<i32, _>("is_shiny").unwrap_or(0) == 1;
-        let is_hatched = row.try_get::<i32, _>("is_hatched").unwrap_or(0) == 1;
+        let rec = PokemonDbRecord::from_row(row);
+        let formatted_name = format_pokemon_name(&rec.nickname);
 
         let pokemon_id: i64 = row.try_get("pokemon_id").unwrap_or(0);
-        let is_chibi = crate::evolution::is_chibi_id(pokemon_id as u32);
+        let is_chibi = crate::evolution::is_chibi_id(pokemon_id as u32)
+            || rec.nickname.to_lowercase().starts_with("chibi ");
         let chibi_prefix = if is_chibi {
             format!("{} ", crate::emoji::get_chibi_emoji(true))
         } else {
             String::new()
         };
 
-        let name_str = if is_shiny {
-            if is_hatched {
-                format!("{}{} {} <b>{}</b>", chibi_prefix, SHINY_EMOJI, crate::emoji::get_egg_emoji(true), escape_html(&nickname))
+        let is_egg = rec.is_hatched || rec.nickname.trim().eq_ignore_ascii_case("egg");
+        let name_str = if rec.is_shiny {
+            if is_egg {
+                format!("{}{} {} <b>{}</b>", chibi_prefix, crate::emoji::get_shiny_emoji(true), crate::emoji::get_egg_emoji(true), escape_html(&formatted_name))
             } else {
-                format!("{}{} <b>{}</b>", chibi_prefix, SHINY_EMOJI, escape_html(&nickname))
+                format!("{}{} <b>{}</b>", chibi_prefix, crate::emoji::get_shiny_emoji(true), escape_html(&formatted_name))
             }
-        } else if is_hatched {
-            format!("{}{} <b>{}</b>", chibi_prefix, crate::emoji::get_egg_emoji(true), escape_html(&nickname))
+        } else if is_egg {
+            format!("{}{} <b>{}</b>", chibi_prefix, crate::emoji::get_egg_emoji(true), escape_html(&formatted_name))
         } else if is_chibi {
-            format!("{}<b>{}</b>", chibi_prefix, escape_html(&nickname))
+            format!("{}<b>{}</b>", chibi_prefix, escape_html(&formatted_name))
         } else {
-            escape_html(&nickname)
+            escape_html(&formatted_name)
         };
 
-        lines.push(format!("{}. {} - {}", num, name_str, escape_html(&nature)));
+        let detail_opt = if display_option == DisplayOption::None {
+            None
+        } else {
+            format_mypokemon_item_detail(&rec, pokedex, display_option)
+                .or_else(|| Some(rec.nature.clone()))
+        };
+
+        let line_content = match detail_opt {
+            Some(d) => format!("{}. {} - {}", num, name_str, d),
+            None => format!("{}. {}", num, name_str),
+        };
+
+        lines.push(line_content);
         buttons.push(InlineKeyboardButton::callback(
             format!("{}", num),
             format!("{}{}", callback_prefix, id),
@@ -1655,26 +1676,26 @@ async fn fetch_matching_owned_pokemons(
         (false, search_query)
     };
 
-    if let Ok(num) = search_query.parse::<i64>() {
+    let rows = if let Ok(num) = search_query.parse::<i64>() {
         let sql = if is_shiny_filter {
             "SELECT id, pokemon_id, nickname, level, nature, experience, is_starter, is_shiny, is_hatched,
                     iv_hp, iv_attack, iv_defense, iv_sp_attack, iv_sp_defense, iv_speed,
                     ev_hp, ev_attack, ev_defense, ev_sp_attack, ev_sp_defense, ev_speed,
                     boosted_ivs
-             FROM pokemons WHERE user_id = ? AND is_shiny = 1 AND (id = ? OR pokemon_id = ?) ORDER BY id ASC LIMIT 20"
+             FROM pokemons WHERE user_id = ? AND is_shiny = 1 AND (id = ? OR pokemon_id = ?) ORDER BY id ASC"
         } else {
             "SELECT id, pokemon_id, nickname, level, nature, experience, is_starter, is_shiny, is_hatched,
                     iv_hp, iv_attack, iv_defense, iv_sp_attack, iv_sp_defense, iv_speed,
                     ev_hp, ev_attack, ev_defense, ev_sp_attack, ev_sp_defense, ev_speed,
                     boosted_ivs
-             FROM pokemons WHERE user_id = ? AND (id = ? OR pokemon_id = ?) ORDER BY id ASC LIMIT 20"
+             FROM pokemons WHERE user_id = ? AND (id = ? OR pokemon_id = ?) ORDER BY id ASC"
         };
         sqlx::query(sql)
             .bind(user_id as i64)
             .bind(num)
             .bind(num)
             .fetch_all(pool)
-            .await
+            .await?
     } else {
         let pokedex_entry = pokedex.get_pokemon_by_name(search_query);
         let target_pokedex_id = pokedex_entry.map(|p| p.id as i64).unwrap_or(-1);
@@ -1696,7 +1717,7 @@ async fn fetch_matching_owned_pokemons(
                      OR LOWER(nickname) LIKE LOWER(?) || ' %'
                      OR LOWER(nickname) = LOWER(?)
                      OR pokemon_id = ?
-                 ) ORDER BY id ASC LIMIT 20"
+                 ) ORDER BY id ASC"
             } else {
                 "SELECT id, pokemon_id, nickname, level, nature, experience, is_starter, is_shiny, is_hatched,
                         iv_hp, iv_attack, iv_defense, iv_sp_attack, iv_sp_defense, iv_speed,
@@ -1708,7 +1729,7 @@ async fn fetch_matching_owned_pokemons(
                      OR LOWER(nickname) LIKE LOWER(?) || ' %'
                      OR LOWER(nickname) = LOWER(?)
                      OR pokemon_id = ?
-                 ) ORDER BY id ASC LIMIT 20"
+                 ) ORDER BY id ASC"
             }
         } else {
             if is_shiny_filter {
@@ -1723,7 +1744,7 @@ async fn fetch_matching_owned_pokemons(
                      OR LOWER(nickname) = LOWER(?)
                      OR pokemon_id = ?
                      OR pokemon_id = ?
-                 ) ORDER BY id ASC LIMIT 20"
+                 ) ORDER BY id ASC"
             } else {
                 "SELECT id, pokemon_id, nickname, level, nature, experience, is_starter, is_shiny, is_hatched,
                         iv_hp, iv_attack, iv_defense, iv_sp_attack, iv_sp_defense, iv_speed,
@@ -1736,7 +1757,7 @@ async fn fetch_matching_owned_pokemons(
                      OR LOWER(nickname) = LOWER(?)
                      OR pokemon_id = ?
                      OR pokemon_id = ?
-                 ) ORDER BY id ASC LIMIT 20"
+                 ) ORDER BY id ASC"
             }
         };
 
@@ -1754,7 +1775,31 @@ async fn fetch_matching_owned_pokemons(
             q = q.bind(target_pokedex_id).bind(target_chibi_id);
         }
 
-        q.fetch_all(pool).await
+        q.fetch_all(pool).await?
+    };
+
+    if rows.len() > 1 {
+        let (sort_option, sort_direction) = get_user_sort_settings(pool, user_id).await;
+        let mut paired: Vec<(SqliteRow, PokemonDbRecord)> = rows
+            .into_iter()
+            .map(|r| {
+                let rec = PokemonDbRecord::from_row(&r);
+                (r, rec)
+            })
+            .collect();
+
+        paired.sort_by(|(_, a), (_, b)| {
+            let key_a = get_sort_key(a, pokedex, sort_option);
+            let key_b = get_sort_key(b, pokedex, sort_option);
+            match sort_direction {
+                SortDirection::Ascending => key_a.cmp(&key_b).then_with(|| a.id.cmp(&b.id)),
+                SortDirection::Descending => key_b.cmp(&key_a).then_with(|| a.id.cmp(&b.id)),
+            }
+        });
+
+        Ok(paired.into_iter().map(|(r, _)| r).collect())
+    } else {
+        Ok(rows)
     }
 }
 
@@ -8691,6 +8736,51 @@ pub struct PokemonDbRecord {
     pub is_hatched: bool,
 }
 
+impl PokemonDbRecord {
+    pub fn from_row(r: &SqliteRow) -> Self {
+        let id: i64 = r.try_get("id").unwrap_or(0);
+        let pokemon_id: i64 = r.try_get("pokemon_id").unwrap_or(1);
+        let nickname: String = r.try_get("nickname").unwrap_or_else(|_| "Pokemon".to_string());
+        let level: i32 = r.try_get("level").unwrap_or(5);
+        let nature: String = r.try_get("nature").unwrap_or_else(|_| "Hardy".to_string());
+        let iv_hp: i32 = r.try_get("iv_hp").unwrap_or(0);
+        let iv_attack: i32 = r.try_get("iv_attack").unwrap_or(0);
+        let iv_defense: i32 = r.try_get("iv_defense").unwrap_or(0);
+        let iv_sp_attack: i32 = r.try_get("iv_sp_attack").unwrap_or(0);
+        let iv_sp_defense: i32 = r.try_get("iv_sp_defense").unwrap_or(0);
+        let iv_speed: i32 = r.try_get("iv_speed").unwrap_or(0);
+        let ev_hp: i32 = r.try_get("ev_hp").unwrap_or(0);
+        let ev_attack: i32 = r.try_get("ev_attack").unwrap_or(0);
+        let ev_defense: i32 = r.try_get("ev_defense").unwrap_or(0);
+        let ev_sp_attack: i32 = r.try_get("ev_sp_attack").unwrap_or(0);
+        let ev_sp_defense: i32 = r.try_get("ev_sp_defense").unwrap_or(0);
+        let ev_speed: i32 = r.try_get("ev_speed").unwrap_or(0);
+        let is_shiny: i32 = r.try_get("is_shiny").unwrap_or(0);
+        let is_hatched: i32 = r.try_get("is_hatched").unwrap_or(0);
+        PokemonDbRecord {
+            id,
+            pokemon_id,
+            nickname,
+            level,
+            nature,
+            iv_hp,
+            iv_attack,
+            iv_defense,
+            iv_sp_attack,
+            iv_sp_defense,
+            iv_speed,
+            ev_hp,
+            ev_attack,
+            ev_defense,
+            ev_sp_attack,
+            ev_sp_defense,
+            ev_speed,
+            is_shiny: is_shiny == 1,
+            is_hatched: is_hatched == 1,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum SortKey {
     Num(i64),
@@ -9522,8 +9612,9 @@ async fn handle_stats(
         )
         .await?;
     } else if rows.len() > 1 {
+        let (display_option, _) = get_user_display_settings(&pool, user_id).await;
         let (text, keyboard) =
-            format_disambiguation_list(&rows, "Check stats of which pokemon?", "sel_stats_");
+            format_disambiguation_list(&rows, "Check stats of which pokemon?", "sel_stats_", &pokedex, display_option);
         bot.send_message(msg.chat.id, text)
             .parse_mode(ParseMode::Html)
             .reply_markup(keyboard)
@@ -9705,8 +9796,9 @@ async fn handle_release(
             .reply_parameters(ReplyParameters::new(msg.id))
             .await?;
     } else if rows.len() > 1 {
+        let (display_option, _) = get_user_display_settings(&pool, user_id).await;
         let (text, keyboard) =
-            format_disambiguation_list(&rows, "Release which pokemon?", "sel_rel_");
+            format_disambiguation_list(&rows, "Release which pokemon?", "sel_rel_", &pokedex, display_option);
         bot.send_message(msg.chat.id, text)
             .parse_mode(ParseMode::Html)
             .reply_markup(keyboard)
@@ -9808,8 +9900,9 @@ async fn handle_nickname(
             },
         );
     } else if rows.len() > 1 {
+        let (display_option, _) = get_user_display_settings(&pool, user_id).await;
         let (text, keyboard) =
-            format_disambiguation_list(&rows, "Nickname which pokemon?", "sel_nick_");
+            format_disambiguation_list(&rows, "Nickname which pokemon?", "sel_nick_", &pokedex, display_option);
         bot.send_message(msg.chat.id, text)
             .parse_mode(ParseMode::Html)
             .reply_markup(keyboard)
@@ -9952,10 +10045,13 @@ async fn handle_text_message(
                 let nick: String = r.get("nickname");
                 matched_db_id = Some((id, nick));
             } else if rows.len() > 1 {
+                let (display_option, _) = get_user_display_settings(&pool, user_id).await;
                 let (prompt, kb) = format_disambiguation_list(
                     &rows,
                     "Add which pokemon?",
                     &format!("team_add_sel_{}:", pending_team.editor_message_id),
+                    &pokedex,
+                    display_option,
                 );
                 bot.send_message(msg.chat.id, prompt)
                     .parse_mode(ParseMode::Html)
@@ -17184,7 +17280,8 @@ async fn handle_vitamin(
         let text = format_vitamin_screen(&display_name, ev_hp, ev_atk, ev_def, ev_spa, ev_spd, ev_spe, vitamins);
         send_vitamin_message(&bot, msg.chat.id, msg.id, pokemon_db_id, 1, &text).await?;
     } else if rows.len() > 1 {
-        let (text, keyboard) = format_disambiguation_list(&rows, "Use vitamins on which pokemon?", "vit_sel_");
+        let (display_option, _) = get_user_display_settings(&pool, user_id).await;
+        let (text, keyboard) = format_disambiguation_list(&rows, "Use vitamins on which pokemon?", "vit_sel_", &pokedex, display_option);
         bot.send_message(msg.chat.id, text)
             .parse_mode(ParseMode::Html)
             .reply_markup(keyboard)
@@ -17406,7 +17503,8 @@ async fn handle_berry(
         let text = format_berry_screen(&display_name, ev_hp, ev_atk, ev_def, ev_spa, ev_spd, ev_spe, berries);
         send_berry_message(&bot, msg.chat.id, msg.id, pokemon_db_id, 1, &text).await?;
     } else if rows.len() > 1 {
-        let (text, keyboard) = format_disambiguation_list(&rows, "Use berries on which pokemon?", "bry_sel_");
+        let (display_option, _) = get_user_display_settings(&pool, user_id).await;
+        let (text, keyboard) = format_disambiguation_list(&rows, "Use berries on which pokemon?", "bry_sel_", &pokedex, display_option);
         bot.send_message(msg.chat.id, text)
             .parse_mode(ParseMode::Html)
             .reply_markup(keyboard)
@@ -17606,7 +17704,8 @@ async fn handle_candy(
         let pokemon_db_id: i64 = row.get("id");
         send_candy_message(&bot, msg.chat.id, msg.id, pokemon_db_id, 1, "Give a rare candy to this pokemon?").await?;
     } else if rows.len() > 1 {
-        let (text, keyboard) = format_disambiguation_list(&rows, "Use rare candy on which pokemon?", "cnd_sel_");
+        let (display_option, _) = get_user_display_settings(&pool, user_id).await;
+        let (text, keyboard) = format_disambiguation_list(&rows, "Use rare candy on which pokemon?", "cnd_sel_", &pokedex, display_option);
         bot.send_message(msg.chat.id, text)
             .parse_mode(ParseMode::Html)
             .reply_markup(keyboard)
@@ -17994,7 +18093,8 @@ async fn handle_boost(
         let text = format_boost_screen(&display_name, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, boosts);
         send_boost_message(&bot, msg.chat.id, msg.id, pokemon_db_id, &boosted_ivs, &text).await?;
     } else if rows.len() > 1 {
-        let (text, keyboard) = format_disambiguation_list(&rows, "Use boost on which pokemon?", "bst_sel_");
+        let (display_option, _) = get_user_display_settings(&pool, user_id).await;
+        let (text, keyboard) = format_disambiguation_list(&rows, "Use boost on which pokemon?", "bst_sel_", &pokedex, display_option);
         bot.send_message(msg.chat.id, text)
             .parse_mode(ParseMode::Html)
             .reply_markup(keyboard)
@@ -20387,7 +20487,8 @@ async fn handle_teach(
     }
 
     if matching.len() > 1 {
-        let (text, kb) = format_disambiguation_list(&matching, "Teach move to which Pokémon?", "card_info_");
+        let (display_option, _) = get_user_display_settings(&pool, user_id).await;
+        let (text, kb) = format_disambiguation_list(&matching, "Teach move to which Pokémon?", "card_info_", &pokedex, display_option);
         bot.send_message(msg.chat.id, text)
             .parse_mode(ParseMode::Html)
             .reply_markup(kb)
@@ -26134,10 +26235,13 @@ async fn handle_callback(
                     )
                     .await?;
                 } else {
+                    let (display_option, _) = get_user_display_settings(&pool, user_id).await;
                     let (text, keyboard) = format_disambiguation_list(
                         &rows,
                         "Check stats of which pokemon?",
                         "sel_stats_",
+                        &pokedex,
+                        display_option,
                     );
                     safe_edit_text(&bot, chat_id, message_id, text, keyboard).await?;
                 }
@@ -26266,8 +26370,9 @@ async fn handle_callback(
 
                     safe_edit_text(&bot, chat_id, message_id, text, keyboard).await?;
                 } else {
+                    let (display_option, _) = get_user_display_settings(&pool, user_id).await;
                     let (text, keyboard) =
-                        format_disambiguation_list(&rows, "Release which pokemon?", "sel_rel_");
+                        format_disambiguation_list(&rows, "Release which pokemon?", "sel_rel_", &pokedex, display_option);
                     safe_edit_text(&bot, chat_id, message_id, text, keyboard).await?;
                 }
             } else if let Some(id_str) = data.strip_prefix("sel_rel_") {
@@ -26775,8 +26880,9 @@ async fn handle_callback(
                         },
                     );
                 } else if rows.len() > 1 {
+                    let (display_option, _) = get_user_display_settings(&pool, user_id).await;
                     let (text, keyboard) =
-                        format_disambiguation_list(&rows, "Nickname which pokemon?", "sel_nick_");
+                        format_disambiguation_list(&rows, "Nickname which pokemon?", "sel_nick_", &pokedex, display_option);
                     bot.send_message(chat_id, text)
                         .parse_mode(ParseMode::Html)
                         .reply_markup(keyboard)
@@ -28589,7 +28695,8 @@ async fn handle_callback(
                     let text = format_vitamin_screen(&display_name, ev_hp, ev_atk, ev_def, ev_spa, ev_spd, ev_spe, vitamins);
                     edit_vitamin_message(&bot, chat_id, message_id, pokemon_db_id, 1, &text).await?;
                 } else if rows.len() > 1 {
-                    let (text, keyboard) = format_disambiguation_list(&rows, "Use vitamins on which pokemon?", "vit_sel_");
+                    let (display_option, _) = get_user_display_settings(&pool, user_id).await;
+                    let (text, keyboard) = format_disambiguation_list(&rows, "Use vitamins on which pokemon?", "vit_sel_", &pokedex, display_option);
                     safe_edit_text(&bot, chat_id, message_id, text, keyboard).await?;
                 } else {
                     safe_edit_text(
@@ -28852,7 +28959,8 @@ async fn handle_callback(
                     let text = format_berry_screen(&display_name, ev_hp, ev_atk, ev_def, ev_spa, ev_spd, ev_spe, berries);
                     edit_berry_message(&bot, chat_id, message_id, pokemon_db_id, 1, &text).await?;
                 } else if rows.len() > 1 {
-                    let (text, keyboard) = format_disambiguation_list(&rows, "Use berries on which pokemon?", "bry_sel_");
+                    let (display_option, _) = get_user_display_settings(&pool, user_id).await;
+                    let (text, keyboard) = format_disambiguation_list(&rows, "Use berries on which pokemon?", "bry_sel_", &pokedex, display_option);
                     safe_edit_text(&bot, chat_id, message_id, text, keyboard).await?;
                 } else {
                     safe_edit_text(
@@ -29062,7 +29170,8 @@ async fn handle_callback(
                     let pokemon_db_id: i64 = row.get("id");
                     edit_candy_message(&bot, chat_id, message_id, pokemon_db_id, 1, "Give a rare candy to this pokemon?").await?;
                 } else if rows.len() > 1 {
-                    let (text, keyboard) = format_disambiguation_list(&rows, "Use rare candy on which pokemon?", "cnd_sel_");
+                    let (display_option, _) = get_user_display_settings(&pool, user_id).await;
+                    let (text, keyboard) = format_disambiguation_list(&rows, "Use rare candy on which pokemon?", "cnd_sel_", &pokedex, display_option);
                     safe_edit_text(&bot, chat_id, message_id, text, keyboard).await?;
                 } else {
                     safe_edit_text(
@@ -29715,7 +29824,8 @@ async fn handle_callback(
                     let text = format_boost_screen(&display_name, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, boosts);
                     edit_boost_message(&bot, chat_id, message_id, pokemon_db_id, &boosted_ivs, &text).await?;
                 } else if rows.len() > 1 {
-                    let (text, keyboard) = format_disambiguation_list(&rows, "Use boost on which pokemon?", "bst_sel_");
+                    let (display_option, _) = get_user_display_settings(&pool, user_id).await;
+                    let (text, keyboard) = format_disambiguation_list(&rows, "Use boost on which pokemon?", "bst_sel_", &pokedex, display_option);
                     safe_edit_text(&bot, chat_id, message_id, text, keyboard).await?;
                 } else {
                     safe_edit_text(
@@ -31620,10 +31730,20 @@ mod tests {
             .await
             .unwrap();
 
-        let (text, keyboard) = format_disambiguation_list(&rows, "Check stats of which pokemon?", "sel_stats_");
+        let pokedex = PokedexData::default();
+        let (text, keyboard) = format_disambiguation_list(&rows, "Check stats of which pokemon?", "sel_stats_", &pokedex, DisplayOption::Nature);
         assert!(text.contains("1. Pikachu 1 - Hardy"));
         assert!(text.contains("6. Pikachu 6 - Hardy"));
         assert!(text.contains("Check stats of which pokemon?"));
+
+        // Test DisplayOption::None
+        let (text_none, _) = format_disambiguation_list(&rows, "Check stats of which pokemon?", "sel_stats_", &pokedex, DisplayOption::None);
+        assert!(text_none.contains("1. Pikachu 1\n"));
+        assert!(!text_none.contains("1. Pikachu 1 -"));
+
+        // Test DisplayOption::Level
+        let (text_lvl, _) = format_disambiguation_list(&rows, "Check stats of which pokemon?", "sel_stats_", &pokedex, DisplayOption::Level);
+        assert!(text_lvl.contains("1. Pikachu 1 - Level 5"));
 
         // 6 items in chunks of 4 -> 2 rows (row 1 has 4 buttons, row 2 has 2 buttons)
         assert_eq!(keyboard.inline_keyboard.len(), 2);
@@ -31632,6 +31752,148 @@ mod tests {
         assert_eq!(keyboard.inline_keyboard[0][3].text, "4");
         assert_eq!(keyboard.inline_keyboard[1][0].text, "5");
         assert_eq!(keyboard.inline_keyboard[1][1].text, "6");
+    }
+
+    #[tokio::test]
+    async fn test_disambiguation_sort_and_display_integration() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query(
+            "CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                username TEXT,
+                sort_option INTEGER NOT NULL DEFAULT 4,
+                sort_direction TEXT NOT NULL DEFAULT 'Descending',
+                display_option INTEGER NOT NULL DEFAULT 5,
+                show_numbering INTEGER NOT NULL DEFAULT 1,
+                page_size INTEGER NOT NULL DEFAULT 20
+            );"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "CREATE TABLE pokemons (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                pokemon_id INTEGER NOT NULL,
+                nickname TEXT NOT NULL,
+                level INTEGER NOT NULL DEFAULT 5,
+                nature TEXT NOT NULL,
+                experience INTEGER NOT NULL DEFAULT 135,
+                is_starter INTEGER NOT NULL DEFAULT 0,
+                is_shiny INTEGER NOT NULL DEFAULT 0,
+                is_hatched INTEGER NOT NULL DEFAULT 0,
+                iv_hp INTEGER NOT NULL DEFAULT 0,
+                iv_attack INTEGER NOT NULL DEFAULT 0,
+                iv_defense INTEGER NOT NULL DEFAULT 0,
+                iv_sp_attack INTEGER NOT NULL DEFAULT 0,
+                iv_sp_defense INTEGER NOT NULL DEFAULT 0,
+                iv_speed INTEGER NOT NULL DEFAULT 0,
+                ev_hp INTEGER NOT NULL DEFAULT 0,
+                ev_attack INTEGER NOT NULL DEFAULT 0,
+                ev_defense INTEGER NOT NULL DEFAULT 0,
+                ev_sp_attack INTEGER NOT NULL DEFAULT 0,
+                ev_sp_defense INTEGER NOT NULL DEFAULT 0,
+                ev_speed INTEGER NOT NULL DEFAULT 0,
+                boosted_ivs TEXT NOT NULL DEFAULT ''
+            );"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // User 200 with Sort: IvPoints Descending, Display: IvPoints
+        sqlx::query(
+            "INSERT INTO users (id, sort_option, sort_direction, display_option) VALUES (200, 4, 'Descending', 3);"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // Inteleon 1: id=1, level=50, IVs=10 (total 60)
+        sqlx::query(
+            "INSERT INTO pokemons (id, user_id, pokemon_id, nickname, level, nature, iv_hp, iv_attack, iv_defense, iv_sp_attack, iv_sp_defense, iv_speed)
+             VALUES (1, 200, 818, 'Inteleon', 50, 'Docile', 10, 10, 10, 10, 10, 10);"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // Inteleon 2: id=2, level=30, IVs=31 (total 186)
+        sqlx::query(
+            "INSERT INTO pokemons (id, user_id, pokemon_id, nickname, level, nature, iv_hp, iv_attack, iv_defense, iv_sp_attack, iv_sp_defense, iv_speed)
+             VALUES (2, 200, 818, 'Inteleon', 30, 'Modest', 31, 31, 31, 31, 31, 31);"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // Inteleon 3: id=3, level=70, IVs=20 (total 120)
+        sqlx::query(
+            "INSERT INTO pokemons (id, user_id, pokemon_id, nickname, level, nature, iv_hp, iv_attack, iv_defense, iv_sp_attack, iv_sp_defense, iv_speed)
+             VALUES (3, 200, 818, 'Inteleon', 70, 'Quiet', 20, 20, 20, 20, 20, 20);"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let pokedex = PokedexData::load_from_file("./pokedex.json").expect("Failed to load pokedex.json");
+
+        // Test 1: Fetch matching pokemons respects user's sort (IV Points Descending)
+        let rows = fetch_matching_owned_pokemons(&pool, 200, "Inteleon", &pokedex).await.unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].get::<i64, _>("id"), 2); // 186 IV
+        assert_eq!(rows[1].get::<i64, _>("id"), 3); // 120 IV
+        assert_eq!(rows[2].get::<i64, _>("id"), 1); // 60 IV
+
+        let (display_option, _) = get_user_display_settings(&pool, 200).await;
+        assert_eq!(display_option, DisplayOption::IvPoints);
+
+        let (text, keyboard) = format_disambiguation_list(&rows, "Nickname which pokemon?", "sel_nick_", &pokedex, display_option);
+        assert!(text.contains("1. Inteleon - 186 IV"));
+        assert!(text.contains("2. Inteleon - 120 IV"));
+        assert!(text.contains("3. Inteleon - 60 IV"));
+        assert!(text.contains("Nickname which pokemon?"));
+
+        // Verify button mappings match sorted IDs
+        if let teloxide::types::InlineKeyboardButtonKind::CallbackData(ref d) = keyboard.inline_keyboard[0][0].kind {
+            assert_eq!(d, "sel_nick_2");
+        } else {
+            panic!("Expected callback data");
+        }
+        if let teloxide::types::InlineKeyboardButtonKind::CallbackData(ref d) = keyboard.inline_keyboard[0][1].kind {
+            assert_eq!(d, "sel_nick_3");
+        } else {
+            panic!("Expected callback data");
+        }
+        if let teloxide::types::InlineKeyboardButtonKind::CallbackData(ref d) = keyboard.inline_keyboard[0][2].kind {
+            assert_eq!(d, "sel_nick_1");
+        } else {
+            panic!("Expected callback data");
+        }
+
+        // Test 2: Change sort to Level Ascending, display to Level
+        sqlx::query("UPDATE users SET sort_option = 3, sort_direction = 'Ascending', display_option = 2 WHERE id = 200;")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let rows_lvl = fetch_matching_owned_pokemons(&pool, 200, "Inteleon", &pokedex).await.unwrap();
+        assert_eq!(rows_lvl[0].get::<i64, _>("id"), 2); // Level 30
+        assert_eq!(rows_lvl[1].get::<i64, _>("id"), 1); // Level 50
+        assert_eq!(rows_lvl[2].get::<i64, _>("id"), 3); // Level 70
+
+        let (disp_lvl, _) = get_user_display_settings(&pool, 200).await;
+        let (text_lvl, _) = format_disambiguation_list(&rows_lvl, "Check stats of which pokemon?", "sel_stats_", &pokedex, disp_lvl);
+        assert!(text_lvl.contains("1. Inteleon - Level 30"));
+        assert!(text_lvl.contains("2. Inteleon - Level 50"));
+        assert!(text_lvl.contains("3. Inteleon - Level 70"));
+
+        // Test 3: DisplayOption::None
+        let (text_none, _) = format_disambiguation_list(&rows_lvl, "Release which pokemon?", "sel_rel_", &pokedex, DisplayOption::None);
+        assert!(text_none.contains("1. Inteleon\n"));
+        assert!(!text_none.contains("1. Inteleon -"));
     }
 
     #[test]

@@ -12,6 +12,8 @@ target/
 *.db-wal
 *.sqlite
 *.sqlite3
+*.bak*
+*.zip
 
 # Python virtual environment & cache (for asset tools)
 __pycache__/
