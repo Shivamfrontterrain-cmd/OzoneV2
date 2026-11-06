@@ -40,21 +40,54 @@ In the AWS EC2 Console, configure your Instance **Security Group**:
 ssh -i /path/to/your-key.pem ubuntu@<YOUR_EC2_PUBLIC_IP>
 ```
 
-### 3.2 Clone your bot repository
-```bash
-sudo mkdir -p /opt/ozone_bot
-sudo chown -R ubuntu:ubuntu /opt/ozone_bot
-git clone <YOUR_GIT_REPO_URL> /opt/ozone_bot
-cd /opt/ozone_bot
+### 3.2 Upload Project Files (Without GitHub - Recommended)
+
+#### Option A: One-Click PowerShell Script (From your local Windows PC)
+We provide an automated upload script that packages all source files, assets, and database into a compressed archive (excluding the multi-gigabyte Windows `target/` build directory) and uploads it directly to your EC2 instance:
+
+```powershell
+# Run in PowerShell from the project root folder:
+.\deploy\upload_to_ec2.ps1 -Ec2Ip "<YOUR_EC2_PUBLIC_IP>" -KeyPath "C:\path\to\your-key.pem"
 ```
 
-### 3.3 Run the automated setup script
-The included setup script installs Docker, Docker Compose, Git, SQLite, Python Pillow, and configures a 2GB swapfile to prevent out-of-memory errors:
+#### Option B: Manual Command (From your local Windows PC)
+```powershell
+# 1. Package files into a single compressed archive (skipping target/ and build cache):
+tar --exclude="target" --exclude=".git" --exclude="*.zip" --exclude="*.bak*" -czf ozone_deploy.tar.gz src assets deploy Cargo.toml Cargo.lock rust-toolchain.toml pokedex.json Dockerfile docker-compose.yml docker-entrypoint.sh pokemon_bot.db .env
+
+# 2. Upload the archive to your EC2 home directory:
+scp -i "C:\path\to\your-key.pem" ozone_deploy.tar.gz ubuntu@<YOUR_EC2_PUBLIC_IP>:/home/ubuntu/
+```
+
+#### Option C: WinSCP (Graphical Drag & Drop)
+1. Download and launch [WinSCP](https://winscp.net/).
+2. Enter your EC2 Public IP, username `ubuntu`, and select your `.pem` key file in **Advanced > SSH > Authentication**.
+3. Drag and drop project files to `/opt/ozone_bot` on EC2 (be sure not to copy the `target/` folder).
+
+---
+
+### 3.3 Extract and Install on EC2
+
+In your EC2 SSH terminal:
 ```bash
+# 1. Create target bot directory
+sudo mkdir -p /opt/ozone_bot
+sudo chown -R ubuntu:ubuntu /opt/ozone_bot
+
+# 2. Extract the uploaded package
+tar -xzf /home/ubuntu/ozone_deploy.tar.gz -C /opt/ozone_bot/
+cd /opt/ozone_bot
+
+# 3. Ensure persistent data and backup directories exist
+mkdir -p data backups
+if [ -f pokemon_bot.db ]; then
+  cp pokemon_bot.db data/pokemon_bot.db
+fi
+
+# 4. Run automated EC2 configuration script
 chmod +x deploy/setup_aws_ec2.sh
 ./deploy/setup_aws_ec2.sh
 ```
-*(Optional: Log out and log back in so your user account picks up Docker group permissions).*
 
 ---
 
