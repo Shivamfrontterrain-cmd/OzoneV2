@@ -70,3 +70,4 @@ if ($LASTEXITCODE -eq 0) {
     Write-Error "SCP upload failed. Please verify your EC2 IP and .pem key path."
     Remove-Item $ArchiveName -ErrorAction SilentlyContinue
 }
+

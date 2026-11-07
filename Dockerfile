@@ -25,8 +25,10 @@ RUN mkdir -p src && \
     cargo build --release && \
     rm -rf src
 
-# Copy actual source code
+ARG CACHE_BUST=1
+# Copy actual source code and compile-time assets
 COPY src ./src
+COPY assets/canonical_gyms.json ./assets/canonical_gyms.json
 
 # Build the release binary
 RUN touch src/main.rs && cargo build --release --bin ozone_pokemon_bot

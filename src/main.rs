@@ -1178,6 +1178,8 @@ enum Command {
     Referrals,
     #[command(description = "View your shiny Pokémon list")]
     ViewShiny(String),
+    #[command(description = "Exit from any stuck situation")]
+    Cexit,
     #[command(description = "Give a Halloween Creation God Pokémon to the winner (Admin only)", hide)]
     PokeGive(String),
 }
@@ -3064,7 +3066,7 @@ pub fn format_move_entry(m: &MoveDetail) -> String {
     )
 }
 
-pub fn format_battle_move_entry(m: &MoveDetail, user_id: u64) -> String {
+pub fn format_battle_move_entry(m: &MoveDetail, _user_id: u64) -> String {
     let emoji = type_emoji(&m.t);
     let cap_type = capitalize(&m.t);
     let type_tag = if emoji.is_empty() {
@@ -3090,12 +3092,10 @@ pub fn format_battle_move_entry(m: &MoveDetail, user_id: u64) -> String {
     };
 
     format!(
-        "<b>• {} {}</b>\n<b><i>Power:</i></b> <a href=\"tg://user?id={}\">{}</a> | <b><i>Accuracy:</i></b> <a href=\"tg://user?id={}\">{}</a> | ({})",
+        "<b>• {} {}</b>\n<b><i>Power:</i></b> <code>{}</code> | <b><i>Accuracy:</i></b> <code>{}</code> | ({})",
         escape_html(&m.name),
         type_tag,
-        user_id,
         power_val,
-        user_id,
         acc_val,
         cat_str
     )
@@ -4232,7 +4232,7 @@ pub async fn process_player_pokemon_faint(
     (has_alive, team_count, fainted_indices)
 }
 
-fn format_hp_bar(current: i32, max: i32, total_blocks: usize, user_id: u64) -> String {
+fn format_hp_bar(current: i32, max: i32, total_blocks: usize, _user_id: u64) -> String {
     let max = max.max(1);
     let current = current.clamp(0, max);
     let ratio = current as f64 / max as f64;
@@ -4246,11 +4246,7 @@ fn format_hp_bar(current: i32, max: i32, total_blocks: usize, user_id: u64) -> S
     let filled_str = "█".repeat(filled);
     let empty_str = "░".repeat(empty);
 
-    if filled > 0 {
-        format!("<a href=\"tg://user?id={}\">{}</a>{}", user_id, filled_str, empty_str)
-    } else {
-        empty_str
-    }
+    format!("<code>{}{}</code>", filled_str, empty_str)
 }
 
 fn format_battle_screen(
@@ -4275,19 +4271,14 @@ fn format_battle_screen(
     };
 
     let wild_hp_line = format!(
-        "Lv. {} • <a href=\"tg://user?id={}\">HP</a> {}/{}",
+        "Lv. {} • HP <code>{}/{}</code>",
         wild_pokemon.level,
-        trainer_id,
         wild_pokemon.current_hp.max(0),
         wild_pokemon.max_hp
     );
     let wild_hp_bar = format_hp_bar(wild_pokemon.current_hp, wild_pokemon.max_hp, 10, trainer_id);
 
-    let player_name = if !player_pokemon.nickname.is_empty() && player_pokemon.nickname != player_pokemon.name {
-        format_pokemon_name(&player_pokemon.nickname)
-    } else {
-        format_pokemon_name(&player_pokemon.name)
-    };
+    let player_name = format_pokemon_name(&player_pokemon.name);
 
     let player_types_str = player_pokemon
         .types
@@ -4298,9 +4289,8 @@ fn format_battle_screen(
 
     let player_header = format!("<b>{}</b> [{}]", player_name, player_types_str);
     let player_hp_line = format!(
-        "Lv. {} • <a href=\"tg://user?id={}\">HP</a> {}/{}",
+        "Lv. {} • HP <code>{}/{}</code>",
         player_pokemon.level,
-        trainer_id,
         player_pokemon.current_hp.max(0),
         player_pokemon.max_hp
     );
@@ -4347,19 +4337,14 @@ pub fn format_gym_battle_screen(
     let leader_header = format!("Gym Leader {}'s <b>{}</b> [{}]", leader_name, leader_pkmn_name, leader_types_str);
 
     let leader_hp_line = format!(
-        "Lv. {} • <a href=\"tg://user?id={}\">HP</a> {}/{}",
+        "Lv. {} • HP <code>{}/{}</code>",
         leader_pokemon.level,
-        trainer_id,
         leader_pokemon.current_hp.max(0),
         leader_pokemon.max_hp
     );
     let leader_hp_bar = format_hp_bar(leader_pokemon.current_hp, leader_pokemon.max_hp, 10, trainer_id);
 
-    let player_name = if !player_pokemon.nickname.is_empty() && player_pokemon.nickname != player_pokemon.name {
-        format_pokemon_name(&player_pokemon.nickname)
-    } else {
-        format_pokemon_name(&player_pokemon.name)
-    };
+    let player_name = format_pokemon_name(&player_pokemon.name);
 
     let player_types_str = player_pokemon
         .types
@@ -4370,9 +4355,8 @@ pub fn format_gym_battle_screen(
 
     let player_header = format!("<b>{}</b> [{}]", player_name, player_types_str);
     let player_hp_line = format!(
-        "Lv. {} • <a href=\"tg://user?id={}\">HP</a> {}/{}",
+        "Lv. {} • HP <code>{}/{}</code>",
         player_pokemon.level,
-        trainer_id,
         player_pokemon.current_hp.max(0),
         player_pokemon.max_hp
     );
@@ -6505,6 +6489,7 @@ pub struct UserEgg {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HatchedPokemon {
+    pub db_id: i64,
     pub pokemon_id: u32,
     pub name: String,
 }
@@ -7529,7 +7514,7 @@ pub async fn process_egg_step_on_hunt(
         let m3 = moves.get(2).map(|m| m.name.clone());
         let m4 = moves.get(3).map(|m| m.name.clone());
 
-        let _ = sqlx::query(
+        let insert_res = sqlx::query(
             "INSERT INTO pokemons (user_id, pokemon_id, nickname, level, nature,
                                    iv_hp, iv_attack, iv_defense, iv_sp_attack, iv_sp_defense, iv_speed,
                                    ev_hp, ev_attack, ev_defense, ev_sp_attack, ev_sp_defense, ev_speed,
@@ -7554,6 +7539,8 @@ pub async fn process_egg_step_on_hunt(
         .bind(m4)
         .execute(pool)
         .await;
+
+        let db_id = insert_res.map(|r| r.last_insert_rowid()).unwrap_or(0);
 
         let _ = sqlx::query(
             "UPDATE users SET
@@ -7584,6 +7571,7 @@ pub async fn process_egg_step_on_hunt(
         .await;
 
         Some(HatchedPokemon {
+            db_id,
             pokemon_id: incubating.pokemon_id,
             name,
         })
@@ -7731,6 +7719,14 @@ pub struct PendingTeamAction {
 }
 
 pub type PendingTeamActions = Arc<tokio::sync::RwLock<HashMap<u64, PendingTeamAction>>>;
+
+pub static PENDING_TEAM_ACTIONS: tokio::sync::OnceCell<PendingTeamActions> = tokio::sync::OnceCell::const_new();
+
+pub fn get_pending_team_actions() -> PendingTeamActions {
+    PENDING_TEAM_ACTIONS.get().cloned().unwrap_or_else(|| {
+        Arc::new(tokio::sync::RwLock::new(HashMap::new()))
+    })
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MyPokemonItem {
@@ -10626,6 +10622,97 @@ async fn handle_exit(bot: Bot, msg: Message, pool: Arc<SqlitePool>) -> ResponseR
     Ok(())
 }
 
+pub async fn clear_user_stuck_states(
+    pool: &SqlitePool,
+    user_id: u64,
+    battles: &BattleSessions,
+    challenges: &ChallengeSessions,
+    trades: &TradeSessions,
+    pending_nicknames: &PendingNicknames,
+    working_teams: &WorkingTeams,
+    pending_team_actions: &PendingTeamActions,
+    card_sessions: &CardSessions,
+) {
+    if user_id == 0 {
+        return;
+    }
+
+    // 1. In-memory wild battle & gym battle session
+    battles.write().await.remove(&user_id);
+
+    // 2. In-memory challenge / PvP session
+    challenges.write().await.retain(|_, ch| {
+        ch.challenger_id != user_id && ch.opponent_id != Some(user_id)
+    });
+
+    // 3. In-memory trade session
+    trades.write().await.retain(|_, tr| {
+        tr.sender_id != user_id && tr.target_id != user_id
+    });
+
+    // 4. In-memory pending nicknames, team editing, and team actions
+    pending_nicknames.write().await.remove(&user_id);
+    working_teams.write().await.remove(&user_id);
+    pending_team_actions.write().await.remove(&user_id);
+
+    // 5. In-memory trainer card customization session
+    card_sessions.write().await.remove(&user_id);
+
+    // 6. Database states: safari, evtrain & active hunt
+    let _ = sqlx::query("UPDATE user_safari SET is_active = 0, balls_remaining = 0 WHERE user_id = ?")
+        .bind(user_id as i64)
+        .execute(pool)
+        .await;
+
+    let _ = sqlx::query("UPDATE user_evtrain SET is_active = 0 WHERE user_id = ?")
+        .bind(user_id as i64)
+        .execute(pool)
+        .await;
+
+    let _ = sqlx::query("DELETE FROM active_hunts WHERE user_id = ?")
+        .bind(user_id as i64)
+        .execute(pool)
+        .await;
+}
+
+async fn handle_cexit(
+    bot: Bot,
+    msg: Message,
+    pool: Arc<SqlitePool>,
+    battles: BattleSessions,
+    trades: TradeSessions,
+    pending_nicknames: PendingNicknames,
+    working_teams: WorkingTeams,
+) -> ResponseResult<()> {
+    let user_id = msg.from.as_ref().map(|u| u.id.0).unwrap_or(0);
+    if user_id == 0 {
+        return Ok(());
+    }
+
+    let challenges = get_challenges();
+    let card_sessions = get_card_sessions();
+    let pending_team_actions = get_pending_team_actions();
+
+    clear_user_stuck_states(
+        &pool,
+        user_id,
+        &battles,
+        &challenges,
+        &trades,
+        &pending_nicknames,
+        &working_teams,
+        &pending_team_actions,
+        &card_sessions,
+    )
+    .await;
+
+    bot.send_message(msg.chat.id, "Exited successfully!")
+        .reply_parameters(ReplyParameters::new(msg.id))
+        .await?;
+
+    Ok(())
+}
+
 pub const GYM_MAIN_CAPTION: &str = "Which region's gyms would you like to challenge?";
 
 pub fn build_gym_keyboard() -> InlineKeyboardMarkup {
@@ -10669,6 +10756,7 @@ pub fn get_bot_menu_commands(halloween_active: bool) -> Vec<BotCommand> {
         BotCommand::new("challenge", "Challenge another trainer to a battle"),
         BotCommand::new("referrals", "View your referral link and rewards"),
         BotCommand::new("viewshiny", "View your shiny Pokémon list"),
+        BotCommand::new("cexit", "Exit from any stuck situation"),
     ];
     if halloween_active {
         menu_commands.push(BotCommand::new(
@@ -16003,7 +16091,7 @@ async fn handle_hunt(
 
         let hatched = process_egg_step_on_hunt(&pool, &pokedex, user_id).await;
 
-        let mut caption = format_evtrain_hunt_caption(
+        let caption = format_evtrain_hunt_caption(
             &wild.name,
             level,
             is_shiny,
@@ -16012,15 +16100,6 @@ async fn handle_hunt(
             max_hunts,
             &format_evtrain_yield_display(wild, &ev_stat),
         );
-
-        if let Some(hatched_pkmn) = &hatched {
-            let hatch_emoji = crate::emoji::get_hatched_egg_emoji(true);
-            caption.push_str(&format!(
-                "\n\n{} Oh? Your Egg hatched into a <b>{}</b> (Lv. 5)!",
-                hatch_emoji,
-                format_pokemon_name(&hatched_pkmn.name)
-            ));
-        }
 
         let keyboard = InlineKeyboardMarkup::new(vec![vec![
             InlineKeyboardButton::callback(
@@ -16056,6 +16135,20 @@ async fn handle_hunt(
                 .reply_parameters(ReplyParameters::new(msg.id))
                 .await?
         };
+
+        if let Some(hatched_pkmn) = hatched {
+            let hatch_emoji = crate::emoji::get_hatched_egg_emoji(true);
+            let hatch_text = format!(
+                "{} Oh? Your Egg hatched into a <b>{}</b> (Lv. 5)!",
+                hatch_emoji,
+                format_pokemon_name(&hatched_pkmn.name)
+            );
+            let hatch_kb = build_caught_pokemon_keyboard(user_id, hatched_pkmn.db_id, hatched_pkmn.pokemon_id);
+            let _ = bot.send_message(msg.chat.id, hatch_text)
+                .parse_mode(ParseMode::Html)
+                .reply_markup(hatch_kb)
+                .await;
+        }
 
         let prev_hunt = sqlx::query(
             "SELECT chat_id, message_id FROM active_hunts WHERE user_id = ?"
@@ -16350,14 +16443,6 @@ async fn handle_hunt(
     }
 
     let mut caption = format_hunt_caption(&wild.name, level, is_shiny, already_caught);
-    if let Some(hatched_pkmn) = &hatched {
-        let hatch_emoji = crate::emoji::get_hatched_egg_emoji(true);
-        caption.push_str(&format!(
-            "\n\n{} Oh? Your Egg hatched into a <b>{}</b> (Lv. 5)!",
-            hatch_emoji,
-            format_pokemon_name(&hatched_pkmn.name)
-        ));
-    }
     if !drops.is_empty() {
         let drops_text = format_hunt_drops_text(&drops);
         caption.push_str(&format!("\n\n{}", drops_text));
@@ -16398,6 +16483,20 @@ async fn handle_hunt(
             .reply_parameters(ReplyParameters::new(msg.id))
             .await?
     };
+
+    if let Some(hatched_pkmn) = hatched {
+        let hatch_emoji = crate::emoji::get_hatched_egg_emoji(true);
+        let hatch_text = format!(
+            "{} Oh? Your Egg hatched into a <b>{}</b> (Lv. 5)!",
+            hatch_emoji,
+            format_pokemon_name(&hatched_pkmn.name)
+        );
+        let hatch_kb = build_caught_pokemon_keyboard(user_id, hatched_pkmn.db_id, hatched_pkmn.pokemon_id);
+        let _ = bot.send_message(msg.chat.id, hatch_text)
+            .parse_mode(ParseMode::Html)
+            .reply_markup(hatch_kb)
+            .await;
+    }
 
     // Invalidate previous active hunt for this user so old hunt will not work at all
     let prev_hunt = sqlx::query(
@@ -21142,6 +21241,38 @@ pub struct ChallengeBattle {
     pub opponent_team_hp: HashMap<i64, i32>,
     pub awaiting_faint_switch: Option<u64>,
     pub round_first_acted: Option<u64>,
+    pub challenger_mega_used: bool,
+    pub opponent_mega_used: bool,
+}
+
+pub fn get_available_mega_forms(pkmn: &BattlePokemon, pokedex: &PokedexData) -> Vec<String> {
+    let lower_name = pkmn.name.to_lowercase();
+    if lower_name.contains("-mega") || lower_name.contains("-primal") {
+        return Vec::new();
+    }
+    let base_entry = pokedex.get_pokemon_by_id(pkmn.id).or_else(|| pokedex.get_pokemon_by_name(&pkmn.name));
+    let Some(entry) = base_entry else {
+        return Vec::new();
+    };
+    let base_slug = entry.name.to_lowercase().replace(' ', "-");
+    let mut megas = Vec::new();
+    for evo in &entry.evolution {
+        let evo_lower = evo.to_lowercase();
+        if (evo_lower.contains("-mega") || evo_lower.contains("-primal")) && evo_lower.starts_with(&base_slug) {
+            if pokedex.get_pokemon_by_name(&evo_lower).is_some() && !megas.contains(&evo_lower) {
+                megas.push(evo_lower);
+            }
+        }
+    }
+    if megas.is_empty() {
+        for suffix in &["-mega", "-mega-x", "-mega-y", "-primal"] {
+            let candidate = format!("{}{}", base_slug, suffix);
+            if pokedex.get_pokemon_by_name(&candidate).is_some() && !megas.contains(&candidate) {
+                megas.push(candidate);
+            }
+        }
+    }
+    megas
 }
 
 pub fn determine_challenge_faster_trainer_order(
@@ -21357,6 +21488,10 @@ pub fn validate_team_for_challenge(
         return Err("You don't have any Pokémon to battle with.".to_string());
     }
 
+    if settings.random_mode {
+        return Ok(());
+    }
+
     if team.len() > settings.max_pokemon as usize {
         return Err(format!(
             "Your team has {} Pokémon, but the max allowed is {}.",
@@ -21538,6 +21673,9 @@ pub fn build_challenge_settings_keyboard(challenge_id: &str) -> InlineKeyboardMa
         ],
         vec![
             InlineKeyboardButton::callback("Save Settings", format!("ch_set:{}:save", challenge_id)),
+            InlineKeyboardButton::callback("Reset Settings", format!("ch_set:{}:reset", challenge_id)),
+        ],
+        vec![
             InlineKeyboardButton::callback("Back", format!("ch_set:{}:back", challenge_id)),
         ],
     ];
@@ -21689,6 +21827,7 @@ pub fn build_keyboard_for_menu_state(
 pub fn build_challenge_battle_keyboard(
     challenge_id: &str,
     moves: &[MoveDetail],
+    available_megas: &[String],
 ) -> InlineKeyboardMarkup {
     let mut keyboard_rows = Vec::new();
 
@@ -21705,6 +21844,28 @@ pub fn build_challenge_battle_keyboard(
     }
     if !move_row.is_empty() {
         keyboard_rows.push(move_row);
+    }
+
+    if !available_megas.is_empty() {
+        let mut mega_row = Vec::new();
+        for mega_slug in available_megas {
+            let label = if mega_slug.ends_with("-mega-x") {
+                "Mega X"
+            } else if mega_slug.ends_with("-mega-y") {
+                "Mega Y"
+            } else if mega_slug.ends_with("-mega-z") {
+                "Mega Z"
+            } else if mega_slug.contains("-primal") {
+                "Primal Reversion"
+            } else {
+                "Mega Evolution"
+            };
+            mega_row.push(InlineKeyboardButton::callback(
+                label,
+                format!("ch_mega:{}:{}", challenge_id, mega_slug),
+            ));
+        }
+        keyboard_rows.push(mega_row);
     }
 
     keyboard_rows.push(vec![
@@ -21806,11 +21967,7 @@ pub fn format_pvp_battle_screen(
     cur_trainer_name: &str,
     cur_trainer_id: u64,
 ) -> String {
-    let opp_name = if !opp_pokemon.nickname.is_empty() && opp_pokemon.nickname != opp_pokemon.name {
-        format_pokemon_name(&opp_pokemon.nickname)
-    } else {
-        format_pokemon_name(&opp_pokemon.name)
-    };
+    let opp_name = format_pokemon_name(&opp_pokemon.name);
     let opp_types_str = opp_pokemon
         .types
         .iter()
@@ -21825,19 +21982,14 @@ pub fn format_pvp_battle_screen(
     };
 
     let opp_hp_line = format!(
-        "Lv. {} • <a href=\"tg://user?id={}\">HP</a> {}/{}",
+        "Lv. {} • HP <code>{}/{}</code>",
         opp_pokemon.level,
-        opp_trainer_id,
         opp_pokemon.current_hp.max(0),
         opp_pokemon.max_hp
     );
     let opp_hp_bar = format_hp_bar(opp_pokemon.current_hp, opp_pokemon.max_hp, 10, opp_trainer_id);
 
-    let cur_name = if !cur_pokemon.nickname.is_empty() && cur_pokemon.nickname != cur_pokemon.name {
-        format_pokemon_name(&cur_pokemon.nickname)
-    } else {
-        format_pokemon_name(&cur_pokemon.name)
-    };
+    let cur_name = format_pokemon_name(&cur_pokemon.name);
     let cur_types_str = cur_pokemon
         .types
         .iter()
@@ -21852,9 +22004,8 @@ pub fn format_pvp_battle_screen(
     };
 
     let cur_hp_line = format!(
-        "Lv. {} • <a href=\"tg://user?id={}\">HP</a> {}/{}",
+        "Lv. {} • HP <code>{}/{}</code>",
         cur_pokemon.level,
-        cur_trainer_id,
         cur_pokemon.current_hp.max(0),
         cur_pokemon.max_hp
     );
@@ -21918,46 +22069,202 @@ pub fn format_challenge_defeat_screen(
     text
 }
 
-pub async fn load_user_challenge_battle_team(
+pub async fn validate_user_random_challenge_eligible(
     pool: &SqlitePool,
     user_id: u64,
     pokedex: &PokedexData,
-    max_count: usize,
-) -> Vec<BattlePokemon> {
-    let active_team_num = get_user_active_team(pool, user_id).await;
-    let mut team_rows = sqlx::query(
-        "SELECT p.id, p.pokemon_id, p.nickname, p.level, p.nature, p.experience,
-                p.iv_hp, p.iv_attack, p.iv_defense, p.iv_sp_attack, p.iv_sp_defense, p.iv_speed,
-                p.ev_hp, p.ev_attack, p.ev_defense, p.ev_sp_attack, p.ev_sp_defense, p.ev_speed,
-                p.move_1, p.move_2, p.move_3, p.move_4
-         FROM user_teams t
-         JOIN pokemons p ON t.pokemon_db_id = p.id
-         WHERE t.user_id = ? AND t.team_num = ?
-         ORDER BY t.slot ASC"
+    settings: &ChallengeSettings,
+) -> Result<(), String> {
+    let rows = sqlx::query(
+        "SELECT pokemon_id FROM pokemons WHERE user_id = ? AND level >= ? AND level <= ?"
     )
     .bind(user_id as i64)
-    .bind(active_team_num as i64)
+    .bind(settings.min_level as i64)
+    .bind(settings.max_level as i64)
     .fetch_all(pool)
     .await
     .unwrap_or_default();
 
-    if team_rows.is_empty() {
-        team_rows = sqlx::query(
+    if rows.is_empty() {
+        if settings.min_level == settings.max_level {
+            return Err(format!("You have no level {} Pokémon in your collection.", settings.min_level));
+        } else {
+            return Err(format!("You have no Pokémon between level {} and {} in your collection.", settings.min_level, settings.max_level));
+        }
+    }
+
+    let is_leg = |pid: u32| -> bool {
+        pokedex.get_pokemon_by_id(pid)
+            .map(|p| p.is_legendary.unwrap_or(false) || p.is_mythical.unwrap_or(false))
+            .unwrap_or(false)
+    };
+
+    let mut leg_count = 0;
+    let mut non_leg_count = 0;
+    for r in &rows {
+        let pid: i64 = r.try_get("pokemon_id").unwrap_or(0);
+        if is_leg(pid as u32) {
+            leg_count += 1;
+        } else {
+            non_leg_count += 1;
+        }
+    }
+
+    if settings.max_legendaries == 0 && non_leg_count == 0 {
+        return Err("You have no non-legendary Pokémon matching the level requirements.".to_string());
+    }
+
+    if leg_count < settings.min_legendaries as usize {
+        return Err(format!(
+            "You have only {} legendary Pokémon in that level range, but at least {} are required.",
+            leg_count,
+            settings.min_legendaries
+        ));
+    }
+
+    Ok(())
+}
+
+pub async fn validate_user_for_challenge_lobby(
+    pool: &SqlitePool,
+    user_id: u64,
+    pokedex: &PokedexData,
+    settings: &ChallengeSettings,
+) -> Result<(), String> {
+    if settings.random_mode {
+        validate_user_random_challenge_eligible(pool, user_id, pokedex, settings).await
+    } else {
+        let team = get_user_challenge_team(pool, user_id).await;
+        validate_team_for_challenge(&team, pokedex, settings)
+    }
+}
+
+pub async fn load_user_challenge_battle_team(
+    pool: &SqlitePool,
+    user_id: u64,
+    pokedex: &PokedexData,
+    settings: &ChallengeSettings,
+) -> Vec<BattlePokemon> {
+    let max_count = (settings.max_pokemon as usize).clamp(1, 6);
+    let team_rows = if settings.random_mode {
+        // Query ONLY Pokémon trained to the required level range!
+        let all_rows = sqlx::query(
             "SELECT id, pokemon_id, nickname, level, nature, experience,
                     iv_hp, iv_attack, iv_defense, iv_sp_attack, iv_sp_defense, iv_speed,
                     ev_hp, ev_attack, ev_defense, ev_sp_attack, ev_sp_defense, ev_speed,
                     move_1, move_2, move_3, move_4
-             FROM pokemons WHERE user_id = ? ORDER BY id ASC LIMIT 6"
+             FROM pokemons
+             WHERE user_id = ? AND level >= ? AND level <= ?"
         )
         .bind(user_id as i64)
+        .bind(settings.min_level as i64)
+        .bind(settings.max_level as i64)
         .fetch_all(pool)
         .await
         .unwrap_or_default();
-    }
+
+        if all_rows.is_empty() {
+            Vec::new()
+        } else {
+            use rand::seq::SliceRandom;
+
+            let is_leg = |row: &sqlx::sqlite::SqliteRow| -> bool {
+                let pid: i64 = row.try_get("pokemon_id").unwrap_or(0);
+                pokedex.get_pokemon_by_id(pid as u32)
+                    .map(|p| p.is_legendary.unwrap_or(false) || p.is_mythical.unwrap_or(false))
+                    .unwrap_or(false)
+            };
+
+            let mut legendaries: Vec<sqlx::sqlite::SqliteRow> = Vec::new();
+            let mut non_legendaries: Vec<sqlx::sqlite::SqliteRow> = Vec::new();
+
+            for r in all_rows {
+                if is_leg(&r) {
+                    legendaries.push(r);
+                } else {
+                    non_legendaries.push(r);
+                }
+            }
+
+            let mut rng = rand::thread_rng();
+            legendaries.shuffle(&mut rng);
+            non_legendaries.shuffle(&mut rng);
+
+            let total_available = legendaries.len() + non_legendaries.len();
+            let needed_total = max_count.min(total_available);
+
+            let mut selected = Vec::new();
+
+            if settings.max_legendaries == 0 {
+                // Non-legendary only: strictly no legendaries
+                for r in non_legendaries.into_iter().take(needed_total) {
+                    selected.push(r);
+                }
+            } else {
+                let min_leg = (settings.min_legendaries as usize).min(settings.max_legendaries as usize);
+                let max_leg = settings.max_legendaries as usize;
+
+                let leg_take = min_leg.min(legendaries.len()).min(needed_total);
+                for r in legendaries.drain(..leg_take) {
+                    selected.push(r);
+                }
+
+                let remaining_needed = needed_total.saturating_sub(selected.len());
+                let non_leg_take = remaining_needed.min(non_legendaries.len());
+                for r in non_legendaries.drain(..non_leg_take) {
+                    selected.push(r);
+                }
+
+                // If more slots needed and allowed by max_legendaries, fill with remaining legendaries
+                let still_needed = needed_total.saturating_sub(selected.len());
+                let extra_leg_allowed = max_leg.saturating_sub(leg_take);
+                let extra_leg_take = still_needed.min(extra_leg_allowed).min(legendaries.len());
+                for r in legendaries.drain(..extra_leg_take) {
+                    selected.push(r);
+                }
+            }
+
+            selected.shuffle(&mut rng);
+            selected
+        }
+    } else {
+        let active_team_num = get_user_active_team(pool, user_id).await;
+        let mut rows = sqlx::query(
+            "SELECT p.id, p.pokemon_id, p.nickname, p.level, p.nature, p.experience,
+                    p.iv_hp, p.iv_attack, p.iv_defense, p.iv_sp_attack, p.iv_sp_defense, p.iv_speed,
+                    p.ev_hp, p.ev_attack, p.ev_defense, p.ev_sp_attack, p.ev_sp_defense, p.ev_speed,
+                    p.move_1, p.move_2, p.move_3, p.move_4
+             FROM user_teams t
+             JOIN pokemons p ON t.pokemon_db_id = p.id
+             WHERE t.user_id = ? AND t.team_num = ?
+             ORDER BY t.slot ASC"
+        )
+        .bind(user_id as i64)
+        .bind(active_team_num as i64)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+
+        if rows.is_empty() {
+            rows = sqlx::query(
+                "SELECT id, pokemon_id, nickname, level, nature, experience,
+                        iv_hp, iv_attack, iv_defense, iv_sp_attack, iv_sp_defense, iv_speed,
+                        ev_hp, ev_attack, ev_defense, ev_sp_attack, ev_sp_defense, ev_speed,
+                        move_1, move_2, move_3, move_4
+                 FROM pokemons WHERE user_id = ? ORDER BY id ASC LIMIT 6"
+            )
+            .bind(user_id as i64)
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
+        }
+        rows
+    };
 
     let mut pokemons = Vec::new();
     for row in team_rows.into_iter().take(max_count) {
         if let Some(bp) = parse_player_battle_pokemon(&row, pokedex, pool).await {
+            // Keep genuine trained level and authentic stats as-is!
             pokemons.push(bp);
         }
     }
@@ -21973,6 +22280,13 @@ async fn handle_challenge(
     trades: TradeSessions,
     input: String,
 ) -> ResponseResult<()> {
+    if !msg.chat.is_group() && !msg.chat.is_supergroup() {
+        bot.send_message(msg.chat.id, "You can only challenge other trainers in group chats.")
+            .reply_parameters(ReplyParameters::new(msg.id))
+            .await?;
+        return Ok(());
+    }
+
     let challenges = get_challenges();
     let sender_user = match msg.from.as_ref() {
         Some(u) => u,
@@ -22029,6 +22343,17 @@ async fn handle_challenge(
     }
 
     let clean_input = input.trim();
+    if clean_input.eq_ignore_ascii_case("reset") {
+        let _ = sqlx::query("DELETE FROM user_challenge_settings WHERE user_id = ?")
+            .bind(sender_id as i64)
+            .execute(&*pool)
+            .await;
+        bot.send_message(msg.chat.id, "Challenge settings have been reset to default.")
+            .reply_parameters(ReplyParameters::new(msg.id))
+            .await?;
+        return Ok(());
+    }
+
     let (target_id, target_name): (Option<u64>, String) = if !clean_input.is_empty() {
         match find_user_by_username_or_id(&pool, clean_input).await {
             Ok(Some((uid, _uname, fname, _))) => (Some(uid), fname),
@@ -22078,12 +22403,14 @@ async fn handle_challenge(
     let saved_settings = load_user_challenge_settings(&pool, sender_id).await;
 
     let sender_team = get_user_challenge_team(&pool, sender_id).await;
-    if let Err(e) = validate_team_for_challenge(&sender_team, &pokedex, &saved_settings) {
-        bot.send_message(msg.chat.id, e)
+    if sender_team.is_empty() {
+        bot.send_message(msg.chat.id, "You don't have any Pokémon to battle with.")
             .reply_parameters(ReplyParameters::new(msg.id))
             .await?;
         return Ok(());
     }
+
+    let challenger_ready = validate_user_for_challenge_lobby(&pool, sender_id, &pokedex, &saved_settings).await.is_ok();
 
     let challenge_id = uuid::Uuid::new_v4().to_string();
 
@@ -22093,7 +22420,7 @@ async fn handle_challenge(
     let text = format_challenge_screen(
         &c_link,
         &o_link,
-        true,
+        challenger_ready,
         false,
         &saved_settings,
         false,
@@ -22115,12 +22442,12 @@ async fn handle_challenge(
         challenger_name: sender_first_name,
         opponent_id: target_id,
         opponent_name: target_name,
-        challenger_ready: true,
+        challenger_ready,
         opponent_ready: false,
         settings: saved_settings,
         menu_state: ChallengeMenuState::Main,
-        created_at: chrono::Utc::now(),
         battle: None,
+        created_at: chrono::Utc::now(),
     };
 
     challenges.write().await.insert(challenge_id, active);
@@ -22167,8 +22494,7 @@ async fn handle_challenge_callback(
 
         if user_id == ch.challenger_id {
             if !ch.challenger_ready {
-                let team = get_user_challenge_team(pool, user_id).await;
-                if let Err(e) = validate_team_for_challenge(&team, pokedex, &ch.settings) {
+                if let Err(e) = validate_user_for_challenge_lobby(pool, user_id, pokedex, &ch.settings).await {
                     let _ = bot.answer_callback_query(q.id.clone()).text(e).show_alert(true).await;
                     return Ok(());
                 }
@@ -22177,8 +22503,7 @@ async fn handle_challenge_callback(
                 ch.challenger_ready = false;
             }
         } else if ch.opponent_id.is_none() {
-            let team = get_user_challenge_team(pool, user_id).await;
-            if let Err(e) = validate_team_for_challenge(&team, pokedex, &ch.settings) {
+            if let Err(e) = validate_user_for_challenge_lobby(pool, user_id, pokedex, &ch.settings).await {
                 let _ = bot.answer_callback_query(q.id.clone()).text(e).show_alert(true).await;
                 return Ok(());
             }
@@ -22187,8 +22512,7 @@ async fn handle_challenge_callback(
             ch.opponent_ready = true;
         } else if ch.opponent_id == Some(user_id) {
             if !ch.opponent_ready {
-                let team = get_user_challenge_team(pool, user_id).await;
-                if let Err(e) = validate_team_for_challenge(&team, pokedex, &ch.settings) {
+                if let Err(e) = validate_user_for_challenge_lobby(pool, user_id, pokedex, &ch.settings).await {
                     let _ = bot.answer_callback_query(q.id.clone()).text(e).show_alert(true).await;
                     return Ok(());
                 }
@@ -22216,8 +22540,8 @@ async fn handle_challenge_callback(
             };
             let challenger_id = ch.challenger_id;
 
-            let mut c_team = load_user_challenge_battle_team(pool, challenger_id, pokedex, ch.settings.max_pokemon as usize).await;
-            let mut o_team = load_user_challenge_battle_team(pool, opponent_id, pokedex, ch.settings.max_pokemon as usize).await;
+            let mut c_team = load_user_challenge_battle_team(pool, challenger_id, pokedex, &ch.settings).await;
+            let mut o_team = load_user_challenge_battle_team(pool, opponent_id, pokedex, &ch.settings).await;
 
             if c_team.is_empty() || o_team.is_empty() {
                 drop(ch_lock);
@@ -22261,6 +22585,8 @@ async fn handle_challenge_callback(
                 opponent_team_hp: HashMap::new(),
                 awaiting_faint_switch: None,
                 round_first_acted: None,
+                challenger_mega_used: false,
+                opponent_mega_used: false,
             };
 
             ch.battle = Some(ch_battle);
@@ -22305,7 +22631,13 @@ async fn handle_challenge_callback(
                 cur_name,
                 cur_id,
             );
-            let kb = build_challenge_battle_keyboard(challenge_id, &cur_pkmn.moves);
+            let can_mega = ch.settings.form_changes;
+            let available_megas = if can_mega {
+                get_available_mega_forms(cur_pkmn, pokedex)
+            } else {
+                Vec::new()
+            };
+            let kb = build_challenge_battle_keyboard(challenge_id, &cur_pkmn.moves, &available_megas);
             let chat_id = ch.chat_id;
             let msg_id = ch.message_id;
             drop(ch_lock);
@@ -22615,8 +22947,7 @@ async fn handle_challenge_callback(
             let settings_to_save = ch.settings.clone();
             ch.menu_state = ChallengeMenuState::Main;
 
-            let team = get_user_challenge_team(pool, user_id).await;
-            ch.challenger_ready = validate_team_for_challenge(&team, pokedex, &settings_to_save).is_ok();
+            ch.challenger_ready = validate_user_for_challenge_lobby(pool, user_id, pokedex, &settings_to_save).await.is_ok();
 
             let c_link = format_challenge_user_link(Some(ch.challenger_id), &ch.challenger_name);
             let o_link = format_challenge_user_link(ch.opponent_id, &ch.opponent_name);
@@ -22640,6 +22971,34 @@ async fn handle_challenge_callback(
             } else {
                 let _ = bot.answer_callback_query(q.id.clone()).text("Failed to save settings.").show_alert(true).await;
             }
+            return Ok(());
+        }
+
+        if action == "reset" {
+            ch.settings = ChallengeSettings::default();
+            ch.challenger_ready = false;
+            ch.opponent_ready = false;
+            let _ = sqlx::query("DELETE FROM user_challenge_settings WHERE user_id = ?")
+                .bind(user_id as i64)
+                .execute(pool.as_ref())
+                .await;
+            let c_link = format_challenge_user_link(Some(ch.challenger_id), &ch.challenger_name);
+            let o_link = format_challenge_user_link(ch.opponent_id, &ch.opponent_name);
+            let text = format_challenge_screen(
+                &c_link,
+                &o_link,
+                ch.challenger_ready,
+                ch.opponent_ready,
+                &ch.settings,
+                &ch.menu_state,
+            );
+            let kb = build_challenge_settings_keyboard(challenge_id);
+            let chat_id = ch.chat_id;
+            let msg_id = ch.message_id;
+            drop(ch_lock);
+
+            let _ = safe_edit_text(bot, chat_id, msg_id, text, kb).await;
+            let _ = bot.answer_callback_query(q.id.clone()).text("Settings reset to default").await;
             return Ok(());
         }
 
@@ -22693,6 +23052,129 @@ async fn handle_challenge_callback(
 
         let _ = safe_edit_text(bot, chat_id, msg_id, text, kb).await;
         let _ = bot.answer_callback_query(q.id.clone()).await;
+        return Ok(());
+    }
+
+    if let Some(args_str) = data.strip_prefix("ch_mega:") {
+        let parts: Vec<&str> = args_str.split(':').collect();
+        if parts.len() != 2 {
+            let _ = bot.answer_callback_query(q.id.clone()).await;
+            return Ok(());
+        }
+        let challenge_id = parts[0];
+        let mega_slug = parts[1];
+
+        let challenges = get_challenges();
+        let mut ch_lock = challenges.write().await;
+        let Some(ch) = ch_lock.get_mut(challenge_id) else {
+            let _ = bot.answer_callback_query(q.id.clone()).text("This battle has already ended!").show_alert(true).await;
+            return Ok(());
+        };
+
+        let Some(ref mut btl) = ch.battle else {
+            let _ = bot.answer_callback_query(q.id.clone()).text("Battle has not started yet.").show_alert(true).await;
+            return Ok(());
+        };
+
+        if user_id != ch.challenger_id && ch.opponent_id != Some(user_id) {
+            let _ = bot.answer_callback_query(q.id.clone()).text("This is not your battle!").show_alert(true).await;
+            return Ok(());
+        }
+
+        if btl.awaiting_faint_switch.is_some() {
+            let _ = bot.answer_callback_query(q.id.clone()).text("A Pokémon has fainted! Choose another Pokémon first.").show_alert(true).await;
+            return Ok(());
+        }
+
+        if user_id != btl.current_turn {
+            let _ = bot.answer_callback_query(q.id.clone()).text("It is not your turn!").show_alert(true).await;
+            return Ok(());
+        }
+
+        if !ch.settings.form_changes {
+            let _ = bot.answer_callback_query(q.id.clone()).text("Form changes are disabled in this challenge!").show_alert(true).await;
+            return Ok(());
+        }
+
+        let is_challenger = user_id == ch.challenger_id;
+        if is_challenger && btl.challenger_mega_used {
+            let _ = bot.answer_callback_query(q.id.clone()).text("You have already used your Mega Evolution in this battle!").show_alert(true).await;
+            return Ok(());
+        } else if !is_challenger && btl.opponent_mega_used {
+            let _ = bot.answer_callback_query(q.id.clone()).text("You have already used your Mega Evolution in this battle!").show_alert(true).await;
+            return Ok(());
+        }
+
+        let mega_entry = match pokedex.get_pokemon_by_name(mega_slug) {
+            Some(e) => e.clone(),
+            None => {
+                let _ = bot.answer_callback_query(q.id.clone()).text("Mega form data not found.").show_alert(true).await;
+                return Ok(());
+            }
+        };
+
+        let opponent_id = ch.opponent_id.unwrap_or(0);
+        let cur_name = if is_challenger { ch.challenger_name.clone() } else { ch.opponent_name.clone() };
+        let opp_name = if is_challenger { ch.opponent_name.clone() } else { ch.challenger_name.clone() };
+
+        let (cur_pkmn, opp_pkmn, opp_id, cur_id) = if is_challenger {
+            (&mut btl.challenger_active, &btl.opponent_active, opponent_id, ch.challenger_id)
+        } else {
+            (&mut btl.opponent_active, &btl.challenger_active, ch.challenger_id, opponent_id)
+        };
+
+        let old_name = cur_pkmn.name.clone();
+        let old_max = cur_pkmn.max_hp;
+        let old_cur = cur_pkmn.current_hp;
+
+        cur_pkmn.id = mega_entry.id;
+        cur_pkmn.name = mega_entry.name.clone();
+        cur_pkmn.types = mega_entry.types.clone();
+        cur_pkmn.base_stats = mega_entry.stats.clone();
+
+        let new_max = calc_hp(mega_entry.stats.hp, cur_pkmn.iv_hp, cur_pkmn.ev_hp, cur_pkmn.level as i32);
+        if old_max > 0 {
+            cur_pkmn.current_hp = ((old_cur as f64 / old_max as f64) * new_max as f64).round() as i32;
+            cur_pkmn.current_hp = cur_pkmn.current_hp.max(1);
+        } else {
+            cur_pkmn.current_hp = new_max;
+        }
+        cur_pkmn.max_hp = new_max;
+
+        if is_challenger {
+            btl.challenger_mega_used = true;
+        } else {
+            btl.opponent_mega_used = true;
+        }
+
+        let is_primal = mega_slug.contains("-primal");
+        let evo_term = if is_primal { "underwent Primal Reversion into" } else { "Mega Evolved into" };
+        let action_msg = format!("{}'s {} {} <b>{}</b>!", cur_name, format_pokemon_name(&old_name), evo_term, format_pokemon_name(&cur_pkmn.name));
+        btl.last_action = action_msg;
+
+        let cur_pkmn_clone = cur_pkmn.clone();
+        let opp_pkmn_clone = opp_pkmn.clone();
+        let log = btl.last_action.clone();
+        let chat_id = ch.chat_id;
+        let msg_id = ch.message_id;
+
+        // Mega has now been used, so available_megas is empty for this turn
+        let kb = build_challenge_battle_keyboard(challenge_id, &cur_pkmn_clone.moves, &[]);
+
+        drop(ch_lock);
+
+        let updated_text = format_pvp_battle_screen(
+            &log,
+            &opp_pkmn_clone,
+            &opp_name,
+            opp_id,
+            &cur_pkmn_clone,
+            &cur_name,
+            cur_id,
+        );
+
+        let _ = bot.answer_callback_query(q.id.clone()).await;
+        safe_edit_text(bot, chat_id, msg_id, updated_text, kb).await?;
         return Ok(());
     }
 
@@ -22751,16 +23233,8 @@ async fn handle_challenge_callback(
 
         let _ = bot.answer_callback_query(q.id.clone()).await;
 
-        let atk_display = if !attacker_pkmn.nickname.is_empty() && attacker_pkmn.nickname != attacker_pkmn.name {
-            format_pokemon_name(&attacker_pkmn.nickname)
-        } else {
-            format_pokemon_name(&attacker_pkmn.name)
-        };
-        let def_display = if !defender_pkmn.nickname.is_empty() && defender_pkmn.nickname != defender_pkmn.name {
-            format_pokemon_name(&defender_pkmn.nickname)
-        } else {
-            format_pokemon_name(&defender_pkmn.name)
-        };
+        let atk_display = format_pokemon_name(&attacker_pkmn.name);
+        let def_display = format_pokemon_name(&defender_pkmn.name);
 
         let hit = !check_move_miss_against(&chosen_move, &defender_pkmn);
         let log = if hit {
@@ -22892,7 +23366,13 @@ async fn handle_challenge_callback(
             cur_name,
             cur_id,
         );
-        let kb = build_challenge_battle_keyboard(challenge_id, &cur_pkmn.moves);
+        let can_mega = ch.settings.form_changes && if btl.current_turn == ch.challenger_id { !btl.challenger_mega_used } else { !btl.opponent_mega_used };
+        let available_megas = if can_mega {
+            get_available_mega_forms(cur_pkmn, pokedex)
+        } else {
+            Vec::new()
+        };
+        let kb = build_challenge_battle_keyboard(challenge_id, &cur_pkmn.moves, &available_megas);
         drop(ch_lock);
 
         safe_edit_text(bot, chat_id, msg_id, updated_text, kb).await?;
@@ -22983,11 +23463,7 @@ async fn handle_challenge_callback(
         }
 
         let user_name = if is_challenger { &ch.challenger_name } else { &ch.opponent_name };
-        let new_name = if !new_active.nickname.is_empty() && new_active.nickname != new_active.name {
-            format_pokemon_name(&new_active.nickname)
-        } else {
-            format_pokemon_name(&new_active.name)
-        };
+        let new_name = format_pokemon_name(&new_active.name);
         let send_out_log = format!("{} sent out {}!", user_name, new_name);
 
         let chat_id = ch.chat_id;
@@ -23020,7 +23496,13 @@ async fn handle_challenge_callback(
                 cur_name,
                 cur_id,
             );
-            let kb = build_challenge_battle_keyboard(challenge_id, &cur_pkmn.moves);
+            let can_mega = ch.settings.form_changes && if btl.current_turn == ch.challenger_id { !btl.challenger_mega_used } else { !btl.opponent_mega_used };
+            let available_megas = if can_mega {
+                get_available_mega_forms(cur_pkmn, pokedex)
+            } else {
+                Vec::new()
+            };
+            let kb = build_challenge_battle_keyboard(challenge_id, &cur_pkmn.moves, &available_megas);
             drop(ch_lock);
 
             safe_edit_text(bot, chat_id, msg_id, updated_text, kb).await?;
@@ -23064,7 +23546,13 @@ async fn handle_challenge_callback(
                 cur_name,
                 cur_id,
             );
-            let kb = build_challenge_battle_keyboard(challenge_id, &cur_pkmn.moves);
+            let can_mega = ch.settings.form_changes && if btl.current_turn == ch.challenger_id { !btl.challenger_mega_used } else { !btl.opponent_mega_used };
+            let available_megas = if can_mega {
+                get_available_mega_forms(cur_pkmn, pokedex)
+            } else {
+                Vec::new()
+            };
+            let kb = build_challenge_battle_keyboard(challenge_id, &cur_pkmn.moves, &available_megas);
             drop(ch_lock);
 
             safe_edit_text(bot, chat_id, msg_id, updated_text, kb).await?;
@@ -23169,7 +23657,13 @@ async fn handle_challenge_callback(
             cur_name,
             cur_id,
         );
-        let kb = build_challenge_battle_keyboard(challenge_id, &cur_pkmn.moves);
+        let can_mega = ch.settings.form_changes && if btl.current_turn == ch.challenger_id { !btl.challenger_mega_used } else { !btl.opponent_mega_used };
+        let available_megas = if can_mega {
+            get_available_mega_forms(cur_pkmn, pokedex)
+        } else {
+            Vec::new()
+        };
+        let kb = build_challenge_battle_keyboard(challenge_id, &cur_pkmn.moves, &available_megas);
         let chat_id = ch.chat_id;
         let msg_id = ch.message_id;
         drop(ch_lock);
@@ -27729,11 +28223,7 @@ async fn handle_callback(
                         None => return Ok(()),
                     };
 
-                    let p_name = if !battle.player_pokemon.nickname.is_empty() && battle.player_pokemon.nickname != battle.player_pokemon.name {
-                        format_pokemon_name(&battle.player_pokemon.nickname)
-                    } else {
-                        format_pokemon_name(&battle.player_pokemon.name)
-                    };
+                    let p_name = format_pokemon_name(&battle.player_pokemon.name);
                     let w_name = format_pokemon_name(&battle.wild_pokemon.name);
 
                     if let Some(gym) = battle.gym_info.clone() {
@@ -28503,11 +28993,7 @@ async fn handle_callback(
 
                     let _ = bot.answer_callback_query(q.id.clone()).await;
 
-                    let p_name = if !new_player_pkmn.nickname.is_empty() && new_player_pkmn.nickname != new_player_pkmn.name {
-                        format_pokemon_name(&new_player_pkmn.nickname)
-                    } else {
-                        format_pokemon_name(&new_player_pkmn.name)
-                    };
+                    let p_name = format_pokemon_name(&new_player_pkmn.name);
                     let w_name = format_pokemon_name(&battle.wild_pokemon.name);
 
                     let was_fainted = battle.player_pokemon.current_hp == 0;
@@ -30963,6 +31449,7 @@ async fn run_bot() {
     let pending_nicknames: PendingNicknames = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
     let working_teams: WorkingTeams = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
     let pending_team_actions: PendingTeamActions = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
+    let _ = PENDING_TEAM_ACTIONS.set(pending_team_actions.clone());
     let trades: TradeSessions = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
     let _ = TRADES.set(trades.clone());
     let challenges: ChallengeSessions = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
@@ -31125,6 +31612,18 @@ async fn run_bot() {
                                     Command::Safari => handle_safari(bot, msg).await,
                                     Command::Enter => handle_enter(bot, msg, pool).await,
                                     Command::Exit => handle_exit(bot, msg, pool).await,
+                                    Command::Cexit => {
+                                        handle_cexit(
+                                            bot,
+                                            msg,
+                                            pool,
+                                            battles,
+                                            trades,
+                                            pending_nicknames,
+                                            working_teams,
+                                        )
+                                        .await
+                                    }
                                     Command::EvTrain => {
                                         handle_evtrain(bot, msg, pool, battles).await
                                     }
@@ -32768,19 +33267,19 @@ mod tests {
     fn test_format_hp_bar() {
         // 100% full
         let bar_full = format_hp_bar(38, 38, 10, 12345);
-        assert_eq!(bar_full, "<a href=\"tg://user?id=12345\">██████████</a>");
+        assert_eq!(bar_full, "<code>██████████</code>");
 
         // 50% full
         let bar_half = format_hp_bar(19, 38, 10, 12345);
-        assert_eq!(bar_half, "<a href=\"tg://user?id=12345\">█████</a>░░░░░");
+        assert_eq!(bar_half, "<code>█████░░░░░</code>");
 
         // 0% HP
         let bar_empty = format_hp_bar(0, 38, 10, 12345);
-        assert_eq!(bar_empty, "░░░░░░░░░░");
+        assert_eq!(bar_empty, "<code>░░░░░░░░░░</code>");
 
         // Living with 1 HP
         let bar_min = format_hp_bar(1, 380, 10, 12345);
-        assert_eq!(bar_min, "<a href=\"tg://user?id=12345\">█</a>░░░░░░░░░");
+        assert_eq!(bar_min, "<code>█░░░░░░░░░</code>");
     }
 
     #[test]
@@ -32827,7 +33326,7 @@ mod tests {
             db_id: Some(1),
             id: 149,
             name: "Dragonite".to_string(),
-            nickname: "Dragonite".to_string(),
+            nickname: "NicknamedDragonite".to_string(),
             level: 100,
             types: vec!["dragon".to_string(), "flying".to_string()],
             nature: "Adamant".to_string(),
@@ -32850,19 +33349,20 @@ mod tests {
 
         let screen = format_battle_screen("Battle begins", &wild, &player, "Shivam", 7589421463);
 
-        // Verify key text elements matching the screenshot
+        // Verify key text elements: monospace HP and moves, real pokemon name (no nickname)
         assert!(screen.starts_with("Battle begins\n\n"));
         assert!(screen.contains(r#"Wild <b>Psyduck</b> [Water <tg-emoji emoji-id="6122856740967950386">💧</tg-emoji>]"#));
-        assert!(screen.contains("Lv. 14 • <a href=\"tg://user?id=7589421463\">HP</a> 38/38"));
-        assert!(screen.contains("<a href=\"tg://user?id=7589421463\">██████████</a>"));
+        assert!(screen.contains("Lv. 14 • HP <code>38/38</code>"));
+        assert!(screen.contains("<code>██████████</code>"));
         assert!(screen.contains("Current turn: <a href=\"tg://user?id=7589421463\">Shivam</a>"));
         assert!(screen.contains(r#"<b>Dragonite</b> [Dragon <tg-emoji emoji-id="6120513333796807923">🐉</tg-emoji> / Flying <tg-emoji emoji-id="6122860864136553639">🦅</tg-emoji>]"#));
-        assert!(screen.contains("Lv. 100 • <a href=\"tg://user?id=7589421463\">HP</a> 348/348"));
+        assert!(!screen.contains("NicknamedDragonite"));
+        assert!(screen.contains("Lv. 100 • HP <code>348/348</code>"));
         assert!(!screen.contains("<blockquote>"));
-        assert!(screen.contains("<b>• Slam [ Normal <tg-emoji emoji-id=\"6120921634862800671\">🔘</tg-emoji> ]</b>\n<b><i>Power:</i></b> <a href=\"tg://user?id=7589421463\">80</a> | <b><i>Accuracy:</i></b> <a href=\"tg://user?id=7589421463\">75</a> | (Physical)"));
-        assert!(screen.contains("<b>• Aqua Tail [ Water <tg-emoji emoji-id=\"6122856740967950386\">💧</tg-emoji> ]</b>\n<b><i>Power:</i></b> <a href=\"tg://user?id=7589421463\">90</a> | <b><i>Accuracy:</i></b> <a href=\"tg://user?id=7589421463\">90</a> | (Physical)"));
-        assert!(screen.contains("<b>• Dragon Rush [ Dragon <tg-emoji emoji-id=\"6120513333796807923\">🐉</tg-emoji> ]</b>\n<b><i>Power:</i></b> <a href=\"tg://user?id=7589421463\">100</a> | <b><i>Accuracy:</i></b> <a href=\"tg://user?id=7589421463\">75</a> | (Physical)"));
-        assert!(screen.contains("<b>• Outrage [ Dragon <tg-emoji emoji-id=\"6120513333796807923\">🐉</tg-emoji> ]</b>\n<b><i>Power:</i></b> <a href=\"tg://user?id=7589421463\">120</a> | <b><i>Accuracy:</i></b> <a href=\"tg://user?id=7589421463\">100</a> | (Physical)"));
+        assert!(screen.contains("<b>• Slam [ Normal <tg-emoji emoji-id=\"6120921634862800671\">🔘</tg-emoji> ]</b>\n<b><i>Power:</i></b> <code>80</code> | <b><i>Accuracy:</i></b> <code>75</code> | (Physical)"));
+        assert!(screen.contains("<b>• Aqua Tail [ Water <tg-emoji emoji-id=\"6122856740967950386\">💧</tg-emoji> ]</b>\n<b><i>Power:</i></b> <code>90</code> | <b><i>Accuracy:</i></b> <code>90</code> | (Physical)"));
+        assert!(screen.contains("<b>• Dragon Rush [ Dragon <tg-emoji emoji-id=\"6120513333796807923\">🐉</tg-emoji> ]</b>\n<b><i>Power:</i></b> <code>100</code> | <b><i>Accuracy:</i></b> <code>75</code> | (Physical)"));
+        assert!(screen.contains("<b>• Outrage [ Dragon <tg-emoji emoji-id=\"6120513333796807923\">🐉</tg-emoji> ]</b>\n<b><i>Power:</i></b> <code>120</code> | <b><i>Accuracy:</i></b> <code>100</code> | (Physical)"));
     }
 
     #[test]
@@ -32879,7 +33379,7 @@ mod tests {
         let formatted = format_battle_move_entry(&tackle, 12345);
         assert_eq!(
             formatted,
-            "<b>• Tackle [ Normal <tg-emoji emoji-id=\"6120921634862800671\">🔘</tg-emoji> ]</b>\n<b><i>Power:</i></b> <a href=\"tg://user?id=12345\">40</a> | <b><i>Accuracy:</i></b> <a href=\"tg://user?id=12345\">100</a> | (Physical)"
+            "<b>• Tackle [ Normal <tg-emoji emoji-id=\"6120921634862800671\">🔘</tg-emoji> ]</b>\n<b><i>Power:</i></b> <code>40</code> | <b><i>Accuracy:</i></b> <code>100</code> | (Physical)"
         );
 
         let growl = MoveDetail {
@@ -32894,7 +33394,7 @@ mod tests {
         let formatted_growl = format_battle_move_entry(&growl, 12345);
         assert_eq!(
             formatted_growl,
-            "<b>• Growl [ Normal <tg-emoji emoji-id=\"6120921634862800671\">🔘</tg-emoji> ]</b>\n<b><i>Power:</i></b> <a href=\"tg://user?id=12345\">--</a> | <b><i>Accuracy:</i></b> <a href=\"tg://user?id=12345\">100</a> | (Status)"
+            "<b>• Growl [ Normal <tg-emoji emoji-id=\"6120921634862800671\">🔘</tg-emoji> ]</b>\n<b><i>Power:</i></b> <code>--</code> | <b><i>Accuracy:</i></b> <code>100</code> | (Status)"
         );
     }
 
@@ -33767,6 +34267,86 @@ mod tests {
         assert_eq!(get_cb(&kb.inline_keyboard[1][1]), Some("c_rel:12345:678"));
     }
 
+    #[tokio::test]
+    async fn test_process_egg_step_on_hunt_returns_db_id() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+
+        sqlx::query(
+            "CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                egg_incubator INTEGER NOT NULL DEFAULT 1,
+                pokemons_caught INTEGER NOT NULL DEFAULT 0,
+                pokemon_obtained INTEGER NOT NULL DEFAULT 0
+            );"
+        ).execute(&pool).await.unwrap();
+
+        sqlx::query(
+            "CREATE TABLE user_eggs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                pokemon_id INTEGER NOT NULL,
+                steps_remaining INTEGER NOT NULL DEFAULT 1,
+                is_incubating INTEGER NOT NULL DEFAULT 1
+            );"
+        ).execute(&pool).await.unwrap();
+
+        sqlx::query(
+            "CREATE TABLE pokemons (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                pokemon_id INTEGER NOT NULL,
+                nickname TEXT NOT NULL,
+                level INTEGER NOT NULL,
+                nature TEXT NOT NULL,
+                iv_hp INTEGER NOT NULL,
+                iv_attack INTEGER NOT NULL,
+                iv_defense INTEGER NOT NULL,
+                iv_sp_attack INTEGER NOT NULL,
+                iv_sp_defense INTEGER NOT NULL,
+                iv_speed INTEGER NOT NULL,
+                ev_hp INTEGER NOT NULL DEFAULT 0,
+                ev_attack INTEGER NOT NULL DEFAULT 0,
+                ev_defense INTEGER NOT NULL DEFAULT 0,
+                ev_sp_attack INTEGER NOT NULL DEFAULT 0,
+                ev_sp_defense INTEGER NOT NULL DEFAULT 0,
+                ev_speed INTEGER NOT NULL DEFAULT 0,
+                experience INTEGER NOT NULL DEFAULT 0,
+                move_1 TEXT,
+                move_2 TEXT,
+                move_3 TEXT,
+                move_4 TEXT,
+                is_starter INTEGER NOT NULL DEFAULT 0,
+                is_shiny INTEGER NOT NULL DEFAULT 0,
+                is_hatched INTEGER NOT NULL DEFAULT 0
+            );"
+        ).execute(&pool).await.unwrap();
+
+        sqlx::query(
+            "CREATE TABLE user_seen_pokemon (
+                user_id INTEGER NOT NULL,
+                pokemon_id INTEGER NOT NULL,
+                PRIMARY KEY (user_id, pokemon_id)
+            );"
+        ).execute(&pool).await.unwrap();
+
+        sqlx::query("INSERT INTO users (id, egg_incubator) VALUES (12345, 1)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO user_eggs (user_id, pokemon_id, steps_remaining, is_incubating) VALUES (12345, 175, 1, 1)").execute(&pool).await.unwrap();
+
+        let pokedex = PokedexData::load_from_file("./pokedex.json").expect("Failed to load pokedex.json");
+        let hatched = process_egg_step_on_hunt(&pool, &pokedex, 12345).await;
+        assert!(hatched.is_some());
+        let h = hatched.unwrap();
+        assert_eq!(h.pokemon_id, 175);
+        assert!(h.db_id > 0);
+
+        let kb = build_caught_pokemon_keyboard(12345, h.db_id, h.pokemon_id);
+        assert_eq!(kb.inline_keyboard.len(), 2);
+        assert_eq!(kb.inline_keyboard[0][0].text, "View Stats");
+        assert_eq!(kb.inline_keyboard[0][1].text, "View Pokedex");
+        assert_eq!(kb.inline_keyboard[1][0].text, "Nickname");
+        assert_eq!(kb.inline_keyboard[1][1].text, "Release");
+    }
+
     #[test]
     fn test_command_nickname_parse() {
         let cmd = Command::parse("/nickname Rapidash", "bot").unwrap();
@@ -33780,6 +34360,182 @@ mod tests {
             Command::Nickname(target) => assert_eq!(target, ""),
             _ => panic!("Expected Command::Nickname"),
         }
+    }
+
+    #[test]
+    fn test_command_cexit_parse() {
+        let cmd = Command::parse("/cexit", "PokeOzonebot").unwrap();
+        match cmd {
+            Command::Cexit => {}
+            _ => panic!("Expected Command::Cexit"),
+        }
+
+        let cmd_mention = Command::parse("/cexit@PokeOzonebot", "PokeOzonebot").unwrap();
+        match cmd_mention {
+            Command::Cexit => {}
+            _ => panic!("Expected Command::Cexit"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_clear_user_stuck_states() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+
+        sqlx::query(
+            "CREATE TABLE user_safari (
+                user_id INTEGER PRIMARY KEY,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                balls_remaining INTEGER NOT NULL DEFAULT 30
+            );"
+        ).execute(&pool).await.unwrap();
+
+        sqlx::query(
+            "CREATE TABLE user_evtrain (
+                user_id INTEGER PRIMARY KEY,
+                is_active INTEGER NOT NULL DEFAULT 1
+            );"
+        ).execute(&pool).await.unwrap();
+
+        sqlx::query(
+            "CREATE TABLE active_hunts (
+                user_id INTEGER PRIMARY KEY,
+                chat_id INTEGER NOT NULL,
+                message_id INTEGER NOT NULL
+            );"
+        ).execute(&pool).await.unwrap();
+
+        let user_id = 99999u64;
+
+        sqlx::query("INSERT INTO user_safari (user_id, is_active, balls_remaining) VALUES (?, 1, 30)")
+            .bind(user_id as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        sqlx::query("INSERT INTO user_evtrain (user_id, is_active) VALUES (?, 1)")
+            .bind(user_id as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        sqlx::query("INSERT INTO active_hunts (user_id, chat_id, message_id) VALUES (?, 100, 200)")
+            .bind(user_id as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let battles: BattleSessions = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
+        let challenges: ChallengeSessions = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
+        let trades: TradeSessions = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
+        let pending_nicknames: PendingNicknames = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
+        let working_teams: WorkingTeams = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
+        let pending_team_actions: PendingTeamActions = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
+        let card_sessions: CardSessions = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
+
+        let dummy_pokemon = BattlePokemon {
+            db_id: Some(1),
+            id: 25,
+            name: "Pikachu".to_string(),
+            nickname: "Pikachu".to_string(),
+            level: 25,
+            types: vec!["electric".to_string()],
+            nature: "Hardy".to_string(),
+            base_stats: BaseStats {
+                hp: 35,
+                attack: 55,
+                defense: 40,
+                special_attack: 50,
+                special_defense: 50,
+                speed: 90,
+            },
+            iv_hp: 15,
+            iv_atk: 15,
+            iv_def: 15,
+            iv_spa: 15,
+            iv_spd: 15,
+            iv_spe: 15,
+            ev_hp: 0,
+            ev_atk: 0,
+            ev_def: 0,
+            ev_spa: 0,
+            ev_spd: 0,
+            ev_spe: 0,
+            max_hp: 100,
+            current_hp: 100,
+            moves: vec![],
+            is_shiny: false,
+            catch_rate: 190,
+            base_experience: 112,
+            is_burned: false,
+        };
+
+        battles.write().await.insert(user_id, ActiveBattle {
+            owner_id: user_id,
+            chat_id: ChatId(123),
+            message_id: MessageId(456),
+            trainer_name: "Trainer".to_string(),
+            player_pokemon: dummy_pokemon.clone(),
+            wild_pokemon: dummy_pokemon,
+            turn_count: 0,
+            last_action: "None".to_string(),
+            fainted_pokemon_ids: Vec::new(),
+            fainted_team_indices: Vec::new(),
+            team_hp: HashMap::new(),
+            is_evtrain: false,
+            gym_info: None,
+            last_activity: chrono::Utc::now(),
+        });
+
+        pending_nicknames.write().await.insert(user_id, PendingNickname {
+            pokemon_db_id: 1,
+            prompt_message_id: 123,
+            original_name: "Pikachu".to_string(),
+        });
+
+        working_teams.write().await.insert(user_id, vec![1, 2, 3]);
+
+        pending_team_actions.write().await.insert(user_id, PendingTeamAction {
+            editor_message_id: 123,
+            chat_id: 456,
+        });
+
+        clear_user_stuck_states(
+            &pool,
+            user_id,
+            &battles,
+            &challenges,
+            &trades,
+            &pending_nicknames,
+            &working_teams,
+            &pending_team_actions,
+            &card_sessions,
+        ).await;
+
+        assert!(!battles.read().await.contains_key(&user_id));
+        assert!(!pending_nicknames.read().await.contains_key(&user_id));
+        assert!(!working_teams.read().await.contains_key(&user_id));
+        assert!(!pending_team_actions.read().await.contains_key(&user_id));
+
+        let safari_active: (i32, i32) = sqlx::query_as("SELECT is_active, balls_remaining FROM user_safari WHERE user_id = ?")
+            .bind(user_id as i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(safari_active, (0, 0));
+
+        let evtrain_active: i32 = sqlx::query_scalar("SELECT is_active FROM user_evtrain WHERE user_id = ?")
+            .bind(user_id as i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(evtrain_active, 0);
+
+        let active_hunt: Option<i64> = sqlx::query_scalar("SELECT user_id FROM active_hunts WHERE user_id = ?")
+            .bind(user_id as i64)
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
+        assert!(active_hunt.is_none());
     }
 
     #[test]
@@ -39090,7 +39846,7 @@ mod tests {
                 d: String::new(),
             },
         ];
-        let btl_kb = build_challenge_battle_keyboard("ch123", &test_moves);
+        let btl_kb = build_challenge_battle_keyboard("ch123", &test_moves, &[]);
         assert_eq!(btl_kb.inline_keyboard.len(), 2);
         assert_eq!(btl_kb.inline_keyboard[0].len(), 2);
         assert_eq!(btl_kb.inline_keyboard[0][0].text, "Thunderbolt");
@@ -39107,6 +39863,17 @@ mod tests {
                 assert_ne!(btn.text, "Poke Ball", "Poke Ball button must NOT be present in challenge");
             }
         }
+
+        // Test with Mega forms
+        let mega_kb = build_challenge_battle_keyboard(
+            "ch123",
+            &test_moves,
+            &["charizard-mega-x".to_string(), "charizard-mega-y".to_string()],
+        );
+        assert_eq!(mega_kb.inline_keyboard.len(), 3);
+        assert_eq!(mega_kb.inline_keyboard[1].len(), 2);
+        assert_eq!(mega_kb.inline_keyboard[1][0].text, "Mega X");
+        assert_eq!(mega_kb.inline_keyboard[1][1].text, "Mega Y");
 
         // 3. Challenge team switch keyboard
         let team_kb = build_challenge_team_keyboard("ch123", 4, &[1]);
@@ -39164,9 +39931,11 @@ mod tests {
         let pvp_screen = format_pvp_battle_screen("Battle begins", &p2, "Ash", 200, &p1, "Red", 100);
         assert!(pvp_screen.contains("Current turn: <a href=\"tg://user?id=100\">Red</a>"));
         assert!(pvp_screen.contains(&format!("{} <b>Charizard</b>", SHINY_EMOJI)));
-        assert!(pvp_screen.contains("Sparky"));
-        assert!(pvp_screen.contains("<a href=\"tg://user?id=200\">HP</a> 153/153"));
-        assert!(pvp_screen.contains("<a href=\"tg://user?id=100\">HP</a> 110/110"));
+        assert!(pvp_screen.contains("<b>Pikachu</b>"));
+        assert!(!pvp_screen.contains("Sparky"));
+        assert!(pvp_screen.contains("HP <code>153/153</code>"));
+        assert!(pvp_screen.contains("HP <code>110/110</code>"));
+        assert!(pvp_screen.contains("<code>██████████</code>"));
     }
 
     #[test]
@@ -39238,6 +40007,8 @@ mod tests {
             opponent_team_hp: HashMap::new(),
             awaiting_faint_switch: None,
             round_first_acted: None,
+            challenger_mega_used: false,
+            opponent_mega_used: false,
         };
 
         // Faster trainer is challenger
@@ -39357,6 +40128,262 @@ mod tests {
             msg_sandbox,
             "Mewtwo used Psychic.\n\nGengar fainted.\n\n<a href=\"tg://user?id=300\">Red</a> has defeated <a href=\"tg://user?id=400\">Blue</a>."
         );
+    }
+
+    #[tokio::test]
+    async fn test_challenge_random_mode_and_team_validation() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query(
+            "CREATE TABLE user_teams (
+                user_id INTEGER NOT NULL,
+                team_num INTEGER NOT NULL,
+                slot INTEGER NOT NULL,
+                pokemon_db_id INTEGER NOT NULL,
+                PRIMARY KEY (user_id, team_num, slot)
+            );"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "CREATE TABLE pokemons (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                pokemon_id INTEGER NOT NULL,
+                nickname TEXT NOT NULL,
+                level INTEGER NOT NULL DEFAULT 50,
+                nature TEXT NOT NULL DEFAULT 'Hardy',
+                experience INTEGER NOT NULL DEFAULT 0,
+                iv_hp INTEGER NOT NULL DEFAULT 15,
+                iv_attack INTEGER NOT NULL DEFAULT 15,
+                iv_defense INTEGER NOT NULL DEFAULT 15,
+                iv_sp_attack INTEGER NOT NULL DEFAULT 15,
+                iv_sp_defense INTEGER NOT NULL DEFAULT 15,
+                iv_speed INTEGER NOT NULL DEFAULT 15,
+                ev_hp INTEGER NOT NULL DEFAULT 0,
+                ev_attack INTEGER NOT NULL DEFAULT 0,
+                ev_defense INTEGER NOT NULL DEFAULT 0,
+                ev_sp_attack INTEGER NOT NULL DEFAULT 0,
+                ev_sp_defense INTEGER NOT NULL DEFAULT 0,
+                ev_speed INTEGER NOT NULL DEFAULT 0,
+                move_1 TEXT,
+                move_2 TEXT,
+                move_3 TEXT,
+                move_4 TEXT
+            );"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let pokedex = PokedexData::load_from_file("./pokedex.json").unwrap_or_default();
+
+        let mut settings = ChallengeSettings::default();
+        settings.min_legendaries = 6;
+
+        let team = vec![
+            (1, 25, 50, "Pikachu".to_string()),
+            (2, 4, 50, "Charmander".to_string()),
+        ];
+
+        // Without random mode: fails because 0 legendaries < 6 required
+        let res = validate_team_for_challenge(&team, &pokedex, &settings);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err(),
+            "Your team has 0 legendary Pokémon, but at least 6 are required."
+        );
+
+        // With random mode: passes because pokemons are drawn randomly from collection!
+        settings.random_mode = true;
+        let res_random = validate_team_for_challenge(&team, &pokedex, &settings);
+        assert!(res_random.is_ok());
+
+        // Empty team still returns error
+        let empty_team: Vec<(i64, u32, i32, String)> = Vec::new();
+        let res_empty = validate_team_for_challenge(&empty_team, &pokedex, &settings);
+        assert!(res_empty.is_err());
+
+        // Test load_user_challenge_battle_team in random mode from user collection
+        let user_id = 88888u64;
+        for i in 1..=5 {
+            sqlx::query("INSERT INTO pokemons (id, user_id, pokemon_id, nickname, level, nature) VALUES (?, ?, ?, ?, 50, 'Hardy')")
+                .bind(i as i64)
+                .bind(user_id as i64)
+                .bind(25) // Pikachu
+                .bind(format!("Poke{}", i))
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+
+        // Initially, user only has level 50 pokemons
+        let mut lvl_50_settings = ChallengeSettings::default();
+        lvl_50_settings.random_mode = true;
+        lvl_50_settings.min_level = 50;
+        lvl_50_settings.max_level = 50;
+        let loaded = load_user_challenge_battle_team(&pool, user_id, &pokedex, &lvl_50_settings).await;
+        assert_eq!(loaded.len(), 5);
+        assert_eq!(loaded[0].level, 50);
+
+        // Test trained level filtering: when min_level = 100, max_level = 100
+        settings.min_level = 100;
+        settings.max_level = 100;
+        settings.min_legendaries = 0;
+        // User has NO level 100 pokemons yet: validate_user_random_challenge_eligible must return Err
+        let res_eligible_err = validate_user_random_challenge_eligible(&pool, user_id, &pokedex, &settings).await;
+        assert!(res_eligible_err.is_err());
+        assert_eq!(res_eligible_err.unwrap_err(), "You have no level 100 Pokémon in your collection.");
+
+        // And load_user_challenge_battle_team must return empty (untrained level 50 pokemons will NOT be loaded!)
+        let loaded_empty = load_user_challenge_battle_team(&pool, user_id, &pokedex, &settings).await;
+        assert_eq!(loaded_empty.len(), 0, "Untrained pokemons must never be loaded into a level 100 battle");
+
+        // Now train/add a genuine level 100 Charizard for the user
+        sqlx::query("INSERT INTO pokemons (id, user_id, pokemon_id, nickname, level, nature) VALUES (999, ?, 6, 'Charizard', 100, 'Timid')")
+            .bind(user_id as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // Now eligible check passes!
+        let res_eligible_ok = validate_user_random_challenge_eligible(&pool, user_id, &pokedex, &settings).await;
+        assert!(res_eligible_ok.is_ok());
+
+        // And ONLY the genuine level 100 Pokemon is loaded, preserving its genuine level and stats
+        let loaded_100 = load_user_challenge_battle_team(&pool, user_id, &pokedex, &settings).await;
+        assert_eq!(loaded_100.len(), 1);
+        assert_eq!(loaded_100[0].id, 6);
+        assert_eq!(loaded_100[0].level, 100);
+
+        // Test legendary filtering: add Mewtwo (id 150, legendary, lv 70) and Pikachu (id 25, lv 70)
+        let mewtwo_user = 99999u64;
+        sqlx::query("INSERT INTO pokemons (id, user_id, pokemon_id, nickname, level, nature) VALUES (101, ?, 150, 'Mewtwo', 70, 'Modest')")
+            .bind(mewtwo_user as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO pokemons (id, user_id, pokemon_id, nickname, level, nature) VALUES (102, ?, 25, 'Pikachu', 70, 'Hardy')")
+            .bind(mewtwo_user as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // 1. max_legendaries = 0: must exclude Mewtwo
+        let mut non_leg_settings = ChallengeSettings::default();
+        non_leg_settings.random_mode = true;
+        non_leg_settings.max_legendaries = 0;
+        non_leg_settings.max_pokemon = 6;
+        non_leg_settings.min_level = 1;
+        non_leg_settings.max_level = 100;
+        let loaded_non_leg = load_user_challenge_battle_team(&pool, mewtwo_user, &pokedex, &non_leg_settings).await;
+        assert_eq!(loaded_non_leg.len(), 1);
+        assert_eq!(loaded_non_leg[0].id, 25);
+
+        // 2. min_legendaries = 1: must include Mewtwo
+        let mut leg_settings = ChallengeSettings::default();
+        leg_settings.random_mode = true;
+        leg_settings.min_legendaries = 1;
+        leg_settings.max_legendaries = 2;
+        leg_settings.max_pokemon = 2;
+        leg_settings.min_level = 1;
+        leg_settings.max_level = 100;
+        let loaded_leg = load_user_challenge_battle_team(&pool, mewtwo_user, &pokedex, &leg_settings).await;
+        assert_eq!(loaded_leg.len(), 2);
+        assert!(loaded_leg.iter().any(|p| p.id == 150));
+        assert!(loaded_leg.iter().any(|p| p.id == 25));
+    }
+
+    #[test]
+    fn test_challenge_mega_evolution_mechanics() {
+        let pokedex = PokedexData::load_from_file("./pokedex.json").unwrap_or_default();
+
+        let mut charizard = BattlePokemon {
+            id: 6,
+            db_id: Some(1),
+            name: "charizard".to_string(),
+            nickname: "Charizard".to_string(),
+            level: 100,
+            nature: "Jolly".to_string(),
+            types: vec!["Fire".to_string(), "Flying".to_string()],
+            base_stats: BaseStats { hp: 78, attack: 84, defense: 78, special_attack: 109, special_defense: 85, speed: 100 },
+            iv_hp: 31, iv_atk: 31, iv_def: 31, iv_spa: 31, iv_spd: 31, iv_spe: 31,
+            ev_hp: 0, ev_atk: 252, ev_def: 4, ev_spa: 0, ev_spd: 0, ev_spe: 252,
+            max_hp: 297, current_hp: 297,
+            moves: Vec::new(),
+            is_shiny: false,
+            catch_rate: 45,
+            base_experience: 240,
+            is_burned: false,
+        };
+
+        // Available megas for base Charizard
+        let megas = get_available_mega_forms(&charizard, &pokedex);
+        assert_eq!(megas.len(), 2);
+        assert!(megas.contains(&"charizard-mega-x".to_string()));
+        assert!(megas.contains(&"charizard-mega-y".to_string()));
+
+        // Transform into Charizard Mega X
+        let mega_entry = pokedex.get_pokemon_by_name("charizard-mega-x").unwrap();
+        charizard.id = mega_entry.id;
+        charizard.name = mega_entry.name.clone();
+        charizard.types = mega_entry.types.clone();
+        charizard.base_stats = mega_entry.stats.clone();
+        charizard.max_hp = calc_hp(mega_entry.stats.hp, charizard.iv_hp, charizard.ev_hp, charizard.level as i32);
+        charizard.current_hp = charizard.max_hp;
+
+        assert_eq!(charizard.name, "charizard-mega-x");
+        assert_eq!(charizard.types, vec!["fire", "dragon"]);
+        assert_eq!(charizard.base_stats.attack, 130);
+
+        // Once transformed, get_available_mega_forms must return empty!
+        let megas_after = get_available_mega_forms(&charizard, &pokedex);
+        assert!(megas_after.is_empty(), "Transformed Mega Pokémon cannot mega evolve again");
+
+        // Venusaur test
+        let venusaur = BattlePokemon {
+            id: 3,
+            db_id: Some(2),
+            name: "venusaur".to_string(),
+            nickname: "Venusaur".to_string(),
+            level: 50,
+            nature: "Modest".to_string(),
+            types: vec!["Grass".to_string(), "Poison".to_string()],
+            base_stats: BaseStats { hp: 80, attack: 82, defense: 83, special_attack: 100, special_defense: 100, speed: 80 },
+            iv_hp: 31, iv_atk: 31, iv_def: 31, iv_spa: 31, iv_spd: 31, iv_spe: 31,
+            ev_hp: 0, ev_atk: 0, ev_def: 0, ev_spa: 252, ev_spd: 0, ev_spe: 252,
+            max_hp: 155, current_hp: 155,
+            moves: Vec::new(),
+            is_shiny: false,
+            catch_rate: 45,
+            base_experience: 236,
+            is_burned: false,
+        };
+        let v_megas = get_available_mega_forms(&venusaur, &pokedex);
+        assert_eq!(v_megas, vec!["venusaur-mega"]);
+
+        // Kyogre primal test
+        let kyogre = BattlePokemon {
+            id: 382,
+            db_id: Some(3),
+            name: "kyogre".to_string(),
+            nickname: "Kyogre".to_string(),
+            level: 70,
+            nature: "Timid".to_string(),
+            types: vec!["Water".to_string()],
+            base_stats: BaseStats { hp: 100, attack: 100, defense: 90, special_attack: 150, special_defense: 140, speed: 90 },
+            iv_hp: 31, iv_atk: 31, iv_def: 31, iv_spa: 31, iv_spd: 31, iv_spe: 31,
+            ev_hp: 0, ev_atk: 0, ev_def: 0, ev_spa: 252, ev_spd: 0, ev_spe: 252,
+            max_hp: 242, current_hp: 242,
+            moves: Vec::new(),
+            is_shiny: false,
+            catch_rate: 3,
+            base_experience: 335,
+            is_burned: false,
+        };
+        let k_megas = get_available_mega_forms(&kyogre, &pokedex);
+        assert_eq!(k_megas, vec!["kyogre-primal"]);
     }
 
     #[test]
